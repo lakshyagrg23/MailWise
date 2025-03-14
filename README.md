@@ -14,6 +14,16 @@ MailWise is an AI-powered email segregation platform that helps users automatica
 ✅ **Planned Feature:** **Custom Email Categories** – Users will be able to create personalized labels based on their preferences.  
 ✅ **Planned Enhancement:** **Hybrid AI Model** – Combining **Google Gemini AI** with a **fine-tuned BERT model** for faster, more efficient email classification.  
 
+### **Email Categories**
+MailWise automatically classifies emails into the following **seven categories**:
+1. **Essential** – Important emails related to work, academics, and personal life.
+2. **Social** – Notifications from social media platforms and personal messages.
+3. **Promotions** – Marketing emails, discounts, sales offers, and deals.
+4. **Updates** – Transactional emails such as order confirmations, shipping updates, and service notifications.
+5. **Finance** – Bank statements, invoices, and financial transaction alerts.
+6. **Subscriptions** – Newsletters, blog updates, and mailing list emails.
+7. **Miscellaneous** – Emails that don’t fit into the above categories, serving as a catch-all.
+
 ---
 
 ## 🛠 **Tech Stack**
@@ -62,13 +72,15 @@ The project will be accessible at: `http://localhost:3000`
 ## 🎯 **Project Structure**
 ```
 📂 MailWise
- ├── 📂 client            # React Frontend
- ├── 📂 server            # Node.js Backend
- ├── 📂 public            # Static Files
- ├── 📂 src               # Frontend Components
- ├── 📜 package.json      # Dependencies & Scripts
- ├── 📜 .env              # Environment Variables
- ├── 📜 README.md         # Project Documentation
+ ├── 📂 frontend            # React Frontend
+ │   ├── 📂 src             # Source code
+ │   ├── 📂 public          # Static files
+ │   ├── 📜 package.json    # Dependencies & Scripts
+ ├── 📂 backend             # Node.js Backend
+ │   ├── 📜 server.js       # Backend entry point
+ │   ├── 📜 package.json    # Dependencies & Scripts
+ ├── 📜 .env                # Environment Variables
+ ├── 📜 README.md           # Project Documentation
 ```
 
 ---
