@@ -1,6 +1,6 @@
 # **MailWise - AI-Powered Email Segregation Platform**
 
-![MailWise](https://your-image-link.com)
+![home](Images/home.png)
 
 ## 🚀 **Overview**
 MailWise is an AI-powered email segregation platform that helps users automatically categorize their emails into predefined categories. Built with a **Gmail-like UI**, it enhances email organization, reduces clutter, and improves productivity.
@@ -24,6 +24,7 @@ MailWise automatically classifies emails into the following **seven categories**
 6. **Subscriptions** – Newsletters, blog updates, and mailing list emails.
 7. **Miscellaneous** – Emails that don’t fit into the above categories, serving as a catch-all.
 
+![main](Images/logged-in.png)
 ---
 
 ## 🛠 **Tech Stack**
