@@ -36,26 +36,32 @@ In addition to organizing emails, MailWise enhances the **email composition** ex
 ## Project Structure
 
 ```
-MailWise/
-├── client/               # Frontend (React.js)
-│   ├── src/
-│   │   ├── components/  # UI components (Sidebar, Header, EmailView, etc.)
-│   │   ├── api/         # API request handlers
-│   │   ├── hooks/       # Custom React hooks
-│   │   ├── pages/       # Main pages
-│   │   ├── routes/      # Route definitions
-│   │   ├── content/     # Sidebar content
-│   │   ├── assets/      # Static assets
-│   │   └── index.js     # Entry point
-│   ├── public/          # Static public files
-│   ├── package.json     # Dependencies
-│   └── README.md        # Frontend documentation
-│
-└── server/              # Backend (Node.js + Express)
-    ├── db.js            # PostgreSQL connection
-    ├── server.js        # Express server setup
-    ├── package.json     # Dependencies
-    └── .env             # Environment variables (not included in repo)
+├──client
+├── build
+├── node_modules
+├── public
+├── src
+├── package-lock.json
+├── package.json
+└── README.md
+
+server
+├── attachments
+├── controllers
+│ ├── auth
+│ ├── categories
+│ ├── emails
+│ └── fetch-emails
+├── helpFunctions
+├── node_modules
+├── routes
+├── .env
+├── db.js
+├── hj.js
+├── server.js
+├── package-lock.json
+├── package.json
+└── .gitignore
 ```
 
 ---
