@@ -3,7 +3,7 @@ import {fork} from "child_process";
 import axios from 'axios';
 import dotenv from 'dotenv';
 import os from "os";
-import pool from '../../db.js';  
+import prisma from '../../prisma.js';  
 import { data } from '../helpFunctions/fetchUserData.js';
 
 dotenv.config();
@@ -16,6 +16,30 @@ export const fetch1 = async (req, res) => {
 
     if (!accessToken) {
         return res.status(401).json({ error: "Missing access token" });
+    }
+
+    if (accessToken === "demo") {
+        const user = await prisma.user.findUnique({ where: { google_id: 'demo_google_id' } });
+        if (!user) return res.status(404).json({ error: "Demo user not found" });
+        
+        const whereClause = { user_id: user.id };
+        if (category !== "All") {
+            whereClause.category = { equals: category, mode: 'insensitive' };
+        }
+        
+        const storedEmails = await prisma.emailMetadata.findMany({ where: whereClause, orderBy: { received_date: 'desc' } });
+        
+        const serializedDemoEmails = storedEmails.map(email => ({
+            ...email,
+            update: email.update ? email.update.toString() : null
+        }));
+
+        return res.json({
+            emails: serializedDemoEmails,
+            name: user.name,
+            pic: user.profile_pic_url,
+            email: user.email
+        });
     }
 
     const authClient = new google.auth.OAuth2();
@@ -31,26 +55,31 @@ export const fetch1 = async (req, res) => {
         const googleId = await data(accessToken);
 
         // Retrieve user_id from database
-        const userResult = await pool.query("SELECT id FROM users WHERE google_id = $1", [googleId]);
-        if (userResult.rows.length === 0) {
+        const user = await prisma.user.findUnique({
+            where: { google_id: googleId },
+            select: { id: true }
+        });
+        
+        if (!user) {
             return res.status(404).json({ error: "User not found in database" });
         }
-        const userId = userResult.rows[0].id;
+        const userId = user.id;
 
         // Fetch stored emails from the database
-        let emailQuery = "SELECT * FROM email_metadata WHERE user_id = $1";
-    
-        let queryParams = [userId];
-
+        const whereClause = { user_id: userId };
         if (category !== "All") {
-            emailQuery += " AND LOWER(category) = LOWER($2)";
-            queryParams.push(category);
+            whereClause.category = { equals: category, mode: 'insensitive' };
         }
+        
+        const storedEmails = await prisma.emailMetadata.findMany({ where: whereClause });
 
-        const emailResult = await pool.query(emailQuery, queryParams);
-
-        if (emailResult.rows.length > 0) {
-            return res.json({ emails: emailResult.rows,
+        if (storedEmails.length > 0) {
+            const serializedEmails = storedEmails.map(email => ({
+                ...email,
+                update: email.update ? email.update.toString() : null
+            }));
+            
+            return res.json({ emails: serializedEmails,
                 name:userInfoResponse.data.name,
                 pic:userInfoResponse.data.picture,
                 email:userInfoResponse.data.email

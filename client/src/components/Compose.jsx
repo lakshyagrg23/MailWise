@@ -148,7 +148,7 @@ const Compose = ({ openDialog, setOpenDialog }) => {
   const sendMail = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post("http://localhost:5000/email/send-emails", {
+      const response = await axios.post(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/email/send-emails`, {
         params: { access_token: hook.accessToken },
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(hook.data),

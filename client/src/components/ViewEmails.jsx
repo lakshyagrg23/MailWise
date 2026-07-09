@@ -7,7 +7,7 @@ import Emailbody from './Emailbody';
 import { emailContext } from "../App";
 import { getRandomColor } from '../content/getColor';
 
-const API_URL = "http://localhost:5000";
+const API_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
 
 const ViewEmails = () => {
   const { emails, setEmails, accessToken } = useContext(emailContext);

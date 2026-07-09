@@ -1,4 +1,4 @@
-import pool from '../../db.js';
+import prisma from '../../prisma.js';
 
 export const InsertnewCat= async (req, res) => {
     const { userId } = req.params;
@@ -13,18 +13,19 @@ export const InsertnewCat= async (req, res) => {
 
     try {
         // Insert new category into database
-        const result = await pool.query(
-            "INSERT INTO category_preferences (user_id, category_name, category_description) VALUES ($1, $2, $3) RETURNING id, category_name AS name, category_description AS title;",
-            [userId, newCategoryName, newDescription]
-        );
-        await pool.query(
-            `UPDATE users 
-             SET update = $1 
-             WHERE id = $2;`,
-            [1, userId]
-        );
+        const result = await prisma.categoryPreference.create({
+            data: {
+                user_id: parseInt(userId),
+                category_name: newCategoryName,
+                category_description: newDescription
+            }
+        });
+        await prisma.user.update({
+            where: { id: parseInt(userId) },
+            data: { update: 1 }
+        });
 
-        res.status(201).json(result.rows[0]); // Return newly created category
+        res.status(201).json({ id: result.id, name: result.category_name, title: result.category_description }); // Return newly created category
     } catch (error) {
         console.error("Error creating category:", error);
         res.status(500).json({ error: "Internal Server Error" });

@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { google } from 'googleapis';
 import dotenv from 'dotenv';
-import pool from '../../db.js';  
+import prisma from '../../prisma.js';
 import { extractBody } from '../helpFunctions/extractBody.js';
 
 dotenv.config();
@@ -21,9 +21,11 @@ const chunkArray = (arr, size) => {
 
 async function fetchUserCategories(userId) {
     try {
-        const query = `SELECT category_name, category_description FROM category_preferences WHERE user_id = $1;`;
-        const result = await pool.query(query, [userId]);
-        return result.rows;
+        const categories = await prisma.categoryPreference.findMany({
+            where: { user_id: userId },
+            select: { category_name: true, category_description: true }
+        });
+        return categories;
     } catch (error) {
         console.error("Error fetching user categories:", error);
         return [];
@@ -52,7 +54,7 @@ Return the response in the following JSON format (without Markdown or additional
     "summary": "<SUMMARY_TEXT>"
 }`;
 
-        const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
         const result = await model.generateContent(PROMPT);
         const response = await result.response;
         const textResponse = await response.text();
@@ -100,14 +102,21 @@ process.on("message", async ({ messages, userId, accessToken,update }) => {
 
                 const { emailCategory, summary } = await processEmailWithGemini(userId, subject, body);
 
-               await pool.query(
-                `INSERT INTO email_metadata (user_id, email_id, subject, sender, category, attachname, emailSummary, received_date, update)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-                ON CONFLICT (email_id) DO UPDATE
-                SET category = EXCLUDED.category,
-                    update = EXCLUDED.update;`,
-                [userId, message.id, subject, sender, emailCategory, attachName, summary, receivedAt, 1]
-                );
+                await prisma.emailMetadata.upsert({
+                    where: { email_id: message.id },
+                    update: { category: emailCategory, update: 1 },
+                    create: {
+                        user_id: userId,
+                        email_id: message.id,
+                        subject: subject,
+                        sender: sender,
+                        category: emailCategory,
+                        attachname: attachName,
+                        emailsummary: summary,
+                        received_date: receivedAt,
+                        update: 1
+                    }
+                });
 
 
                 return {

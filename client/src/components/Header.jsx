@@ -194,7 +194,7 @@ const Header = ({ toggleDrawer }) => {
                     >
                         <SearchIcon />
                         <InputBase
-                            placeholder="Search the stars..."
+                            placeholder="Search"
                             value={searchQuery}
                             onChange={(e) => {
                                 setSearchQuery(e.target.value);

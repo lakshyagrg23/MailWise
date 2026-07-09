@@ -2,7 +2,7 @@ import React, { useState, useContext } from "react";
 import { emailContext } from "../App";
 import { motion, AnimatePresence } from "framer-motion";
 import { Avatar } from "@mui/material";
-import { Sparkles } from "lucide-react";
+import { HelpCircle } from "lucide-react";
 
 const flyIn = {
   hidden: { opacity: 0, y: -10 },
@@ -20,7 +20,7 @@ const OptionsMenu = () => {
   const [helpOpen, setHelpOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
 
-  const logout = () => (window.location.href = "http://localhost:3000");
+  const logout = () => (window.location.href = "/");
 
   return (
     <div className="fixed top-4 right-4 z-50 flex items-center gap-4 font-sans">
@@ -32,9 +32,9 @@ const OptionsMenu = () => {
           setHelpOpen(!helpOpen);
           setPanelOpen(false);
         }}
-        className="relative w-14 h-14 rounded-full bg-gradient-to-tr from-[#4f46e5] via-[#3b82f6] to-[#10b981] shadow-lg flex items-center justify-center cursor-pointer"
+        className="relative w-8 h-8 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-600 shadow-sm flex items-center justify-center cursor-pointer transition-colors"
       >
-        <Sparkles className="text-white w-7 h-7" />
+        <HelpCircle className="w-5 h-5" />
         <AnimatePresence>
           {helpOpen && (
             <motion.div
@@ -46,20 +46,20 @@ const OptionsMenu = () => {
               style={{ fontWeight: 500 }}
             >
               <h2 className="font-bold text-xl mb-3 flex items-center gap-2 text-indigo-700">
-                <span>💡</span> MailWise Pro Tips
+                <span>💡</span> Tips
               </h2>
               <ul className="text-sm space-y-3 text-gray-700 leading-relaxed">
-                <li>🚀 Zoom through emails with smart category filters.</li>
-                <li>🔍 Use AI-powered search to find anything instantly.</li>
-                <li>📡 Connect with Gmail OAuth for real-time sync.</li>
-                <li>🤖 Auto-email generation while typing messages.</li>
-                <li>📂 Filter by Essentials, Social, Promotions & more with a tap.</li>
+                <li>Zoom through emails with smart category filters.</li>
+                <li>Use AI-powered search to find anything instantly.</li>
+                <li>Connect with Gmail OAuth for real-time sync.</li>
+                <li>Auto-email generation while typing messages.</li>
+                <li>Filter by Essentials, Social, Promotions & more with a tap.</li>
               </ul>
               <button
                 onClick={() => setHelpOpen(false)}
                 className="mt-4 w-full py-2 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 transition-colors duration-200"
               >
-                Got it, Commander 🚀
+                Got it
               </button>
             </motion.div>
           )}

@@ -1,6 +1,6 @@
 import { extractBody } from "../helpFunctions/extractBody.js";
 import { google } from "googleapis";
-import pool from "../../db.js"; // Assuming you have a database connection
+
 import fs from "fs";
 import path from "path";
 
@@ -14,6 +14,20 @@ export const fetch3 = async (req, res) => {
     
     if (!userId || !accessToken) {
         return res.status(400).json({ error: "Missing userId or access_token" });
+    }
+
+    if (accessToken === "demo") {
+        return res.json({
+            email: {
+                _id: userId,
+                userId,
+                subject: "Demo Email Subject",
+                sender: "demo@mailwise.app",
+                body: "<div><h2>Welcome to MailWise!</h2><br/><p>This is a simulated email body for the demo account.</p><p>You can interact with this email just like a real one. Try reading the hover summary, replying, or exploring the analytics features!</p></div>",
+                received_at: new Date().toISOString(),
+                attachments: []
+            }
+        });
     }
 
     const authClient = new google.auth.OAuth2();

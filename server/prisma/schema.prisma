@@ -1,0 +1,51 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              Int                   @id @default(autoincrement())
+  google_id       String                @unique
+  name            String
+  email           String                @unique
+  created_at      DateTime?             @default(now())
+  profile_pic_url String?
+  update          BigInt?               @default(1)
+  emails          EmailMetadata[]
+  categories      CategoryPreference[]
+
+  @@map("users")
+}
+
+model EmailMetadata {
+  id            Int       @id @default(autoincrement())
+  user_id       Int?
+  email_id      String    @unique
+  subject       String
+  sender        String
+  category      String
+  attachname    String?
+  emailsummary  String?
+  received_date DateTime?
+  update        BigInt?   @default(1)
+
+  user          User?     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("email_metadata")
+}
+
+model CategoryPreference {
+  id                   Int     @id @default(autoincrement())
+  user_id              Int?
+  category_name        String
+  category_description String
+
+  user                 User?   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, category_name])
+  @@map("category_preferences")
+}

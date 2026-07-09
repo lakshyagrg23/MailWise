@@ -1,5 +1,5 @@
 import axios from 'axios';
-import pool from '../../db.js';  // Ensure correct path to db.js
+import prisma from '../../prisma.js';
 import globalStore from '../helpFunctions/global.js';
 
 const defaultCategories = [
@@ -36,26 +36,34 @@ export const callback = (oauth2Client) => async (req, res) => {
         const userpic = userInfoResponse.data.picture;
 
         // Check if the user exists in the database
-        const userCheckQuery = `SELECT id,update FROM users WHERE email = $1`;
-        const userCheckResult = await pool.query(userCheckQuery, [userEmail]);
-        console.log(userCheckResult)
-        let userId,update;
-        if (userCheckResult.rows.length === 0) {
+        const userCheckResult = await prisma.user.findUnique({
+            where: { email: userEmail },
+            select: { id: true, update: true }
+        });
+        
+        let userId, update;
+        if (!userCheckResult) {
             // User doesn't exist, insert them into the database
-            const userInsertQuery = `INSERT INTO users (google_id, name, email, profile_pic_url,update)
-                                     VALUES ($1, $2, $3, $4,$5)
-                                     RETURNING id,update;`;
-            const userResult = await pool.query(userInsertQuery, [userInfoResponse.data.id, userName, userEmail, userpic,1]);
-            userId = userResult.rows[0].id;
-            update=1;
+            const userResult = await prisma.user.create({
+                data: {
+                    google_id: userInfoResponse.data.id,
+                    name: userName,
+                    email: userEmail,
+                    profile_pic_url: userpic,
+                    update: 1
+                },
+                select: { id: true, update: true }
+            });
+            userId = userResult.id;
+            update = userResult.update;
             console.log("New user authenticated with ID:", userId);
 
             // Insert default categories for the new user
             await insertDefaultCategories(userId);
         } else {
             // User already exists, just get their ID
-            userId = userCheckResult.rows[0].id;
-            update=userCheckResult.rows[0].update
+            userId = userCheckResult.id;
+            update = userCheckResult.update;
             console.log("Existing user authenticated with ID:", userId);
         }
 
@@ -70,14 +78,15 @@ export const callback = (oauth2Client) => async (req, res) => {
 // Ensure insertDefaultCategories is defined somewhere
 async function insertDefaultCategories(userId) {
     try {
-        for (const category of defaultCategories) {
-            await pool.query(
-                `INSERT INTO category_preferences (user_id, category_name, category_description) 
-                 VALUES ($1, $2, $3) 
-                 ON CONFLICT (user_id, category_name) DO NOTHING;`, 
-                [userId, category.name, category.description]
-            );
-        }
+        const categoriesData = defaultCategories.map(category => ({
+            user_id: parseInt(userId),
+            category_name: category.name,
+            category_description: category.description
+        }));
+        await prisma.categoryPreference.createMany({
+            data: categoriesData,
+            skipDuplicates: true
+        });
         console.log(`Default categories inserted for user ${userId}`);
     } catch (error) {
         console.error("Error inserting default categories:", error);

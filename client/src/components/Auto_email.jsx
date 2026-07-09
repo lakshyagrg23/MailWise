@@ -10,7 +10,7 @@ const Auto_email = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            const response = await axios.get('http://localhost:5000/fetch-email/email', {
+            const response = await axios.get(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/fetch-email/email`, {
                 params: { type: type, details: description },
             });
             console.log(response.data);

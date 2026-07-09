@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: mailwise_db_local
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-Lakshya23}
+      POSTGRES_DB: ${DB_NAME:-mailwise}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data_local:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: mailwise_backend_local
+    restart: always
+    depends_on:
+      - db
+    ports:
+      - "5000:5000"
+    env_file:
+      - ./server/.env
+    environment:
+      # Override the DB host to point to the db container
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-Lakshya23}@db:5432/${DB_NAME:-mailwise}?schema=public
+
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: mailwise_frontend_local
+    restart: always
+    ports:
+      - "80:80"
+
+volumes:
+  postgres_data_local:

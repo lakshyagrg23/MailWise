@@ -7,7 +7,7 @@ export const Refresh = async () => {
     const userId = getQueryParam("user_id");
     if (!userId) return console.error("Missing userId");
     try {
-        const response = await fetch(`http://localhost:5000/emails/${userId}`, {
+        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/emails/${userId}`, {
             method: "DELETE",
         });
         if (response.ok) {

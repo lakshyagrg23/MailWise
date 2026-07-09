@@ -1,4 +1,4 @@
-import pool from '../../db.js';
+import prisma from '../../prisma.js';
 
 export const deleteCategory=async (req, res) => {
     const { userId, categoryName } = req.params;
@@ -6,14 +6,16 @@ export const deleteCategory=async (req, res) => {
 
     try {
         // Ensure the category belongs to the user before deleting
-        const deleteQuery = `
-            DELETE FROM category_preferences
-            WHERE user_id = $1 AND category_name = $2
-            RETURNING *;
-        `;
-        const { rows } = await pool.query(deleteQuery, [userId, categoryName]);
+        const deleted = await prisma.categoryPreference.delete({
+            where: {
+                user_id_category_name: {
+                    user_id: parseInt(userId),
+                    category_name: categoryName
+                }
+            }
+        }).catch(() => null);
 
-        if (rows.length === 0) {
+        if (!deleted) {
             return res.status(404).json({ error: "Category not found or doesn't belong to the user" });
         }
 

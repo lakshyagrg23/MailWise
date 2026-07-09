@@ -1,15 +1,16 @@
-import pool from '../../db.js';
+import prisma from '../../prisma.js';
 
 export const DisplayingCategoriesName= async (req, res) => {
     const userId = req.params.userId;
 
     try {
-        const result = await pool.query(
-            "SELECT category_name AS name, category_description AS title FROM category_preferences WHERE user_id = $1;",
-            [userId]
-        );
+        const result = await prisma.categoryPreference.findMany({
+            where: { user_id: parseInt(userId) },
+            select: { category_name: true, category_description: true }
+        });
 
-        res.json(result.rows); // Send categories as response
+        const formatted = result.map(c => ({ name: c.category_name, title: c.category_description }));
+        res.json(formatted); // Send categories as response
     } catch (error) {
         console.error("Error fetching categories:", error);
         res.status(500).json({ error: "Internal Server Error" });

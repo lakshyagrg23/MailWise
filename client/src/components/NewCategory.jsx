@@ -30,14 +30,14 @@ const NewCategory = () => {
     if (!categoryName.trim() || !description.trim()) return;
 
     try {
-      const response = await axios.post(`http://localhost:5000/categories/${userId}`, {
+      const response = await axios.post(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/categories/${userId}`, {
         newCategoryName: categoryName,
         newDescription: description,
         update:parseInt(update)+1
       });
 
       const newCategory = response.data;
-      let h=parseInt(parseInt)+1
+      let h=parseInt(update)+1
       setUpdate(h);
       setCategories([...categories, newCategory]);
       setIsModalOpen(false);
@@ -52,7 +52,7 @@ const NewCategory = () => {
     if (!userId || !editedDescription) return;
 
     try {
-      const response = await axios.put(`http://localhost:5000/categories/${userId}/${name}`, {
+      const response = await axios.put(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/categories/${userId}/${name}`, {
         newCategoryName: name,
         newDescription: editedDescription,
         update:parseInt(update)+1
@@ -62,7 +62,7 @@ const NewCategory = () => {
         setCategories((prev) =>
           prev.map((c) => (c.name === name ? { ...c, description: editedDescription } : c))
         );
-        let h=parseInt(parseInt)+1
+        let h=parseInt(update)+1
         setUpdate(h);
         setEditingCategory(null);
       }
@@ -96,14 +96,14 @@ const NewCategory = () => {
     try {
       await Promise.all(
         selectedCategories.map((categoryName) =>
-          axios.delete(`http://localhost:5000/categories/${userId}/${categoryName}`,{
+          axios.delete(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/categories/${userId}/${categoryName}`,{
             data:{
               update:parseInt(update)+1
             }
           })
         )
       );
-      let h=parseInt(parseInt)+1
+      let h=parseInt(update)+1
       setUpdate(h);
       setCategories(categories.filter((category) => !selectedCategories.includes(category.name)));
       setSelectedCategories([]);

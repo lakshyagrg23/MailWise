@@ -1,5 +1,5 @@
 import { google } from 'googleapis';
-import pool from '../../db.js';  
+import prisma from '../../prisma.js';
 import dotenv from 'dotenv';
 import { data } from '../helpFunctions/fetchUserData.js';
 dotenv.config();
@@ -12,6 +12,10 @@ const SCOPES = [
 
 export const sendEmails=async (req,res)=>{
     const accessToken=req.body.params.access_token;
+
+    if (accessToken === "demo") {
+        return res.status(200).json({ message: 'Email sent successfully', response: "success" });
+    }
 
     const auth = new google.auth.OAuth2(
         process.env.GOOGLE_CLIENT_ID,
@@ -30,8 +34,11 @@ export const sendEmails=async (req,res)=>{
     auth.setCredentials({
         access_token: accessToken,
     });
-    const useremail = await pool.query("SELECT id, email FROM users WHERE google_id = $1", [googleId]);
-    const senderID=useremail.rows[0].email;
+    const user = await prisma.user.findUnique({
+        where: { google_id: googleId },
+        select: { email: true }
+    });
+    const senderID=user.email;
     const gmail = google.gmail({version: 'v1', auth});
     try{
         const rawBody=req.body.body;

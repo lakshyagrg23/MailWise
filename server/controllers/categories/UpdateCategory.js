@@ -1,4 +1,4 @@
-import pool from '../../db.js';
+import prisma from '../../prisma.js';
 
 export const UpdateCategory=async (req, res) => {
     const { userId, categoryName } = req.params;
@@ -14,24 +14,36 @@ export const UpdateCategory=async (req, res) => {
         }
 
         // Check if the category exists
-        const existingCategory = await pool.query(
-            "SELECT * FROM category_preferences WHERE user_id = $1 AND category_name = $2",
-            [userId, categoryName]
-        );
+        const existingCategory = await prisma.categoryPreference.findUnique({
+            where: {
+                user_id_category_name: {
+                    user_id: parseInt(userId),
+                    category_name: categoryName
+                }
+            }
+        });
 
-        if (existingCategory.rows.length === 0) {
+        if (!existingCategory) {
             console.log("Category not found for update.");
             return res.status(404).json({ error: "Category not found" });
         }
 
         // Update category
-        const updatedCategory = await pool.query(
-            "UPDATE category_preferences SET category_name = $1, category_description = $2 WHERE user_id = $3 AND category_name = $4 RETURNING *",
-            [newCategoryName, newDescription, userId, categoryName]
-        );
+        const updatedCategory = await prisma.categoryPreference.update({
+            where: {
+                user_id_category_name: {
+                    user_id: parseInt(userId),
+                    category_name: categoryName
+                }
+            },
+            data: {
+                category_name: newCategoryName,
+                category_description: newDescription
+            }
+        });
 
-        console.log("Category updated successfully:", updatedCategory.rows[0]);
-        res.json({ message: "Category updated successfully", category: updatedCategory.rows[0] });
+        console.log("Category updated successfully:", updatedCategory);
+        res.json({ message: "Category updated successfully", category: updatedCategory });
     } catch (error) {
         console.error("Database update error:", error);
         res.status(500).json({ error: "Internal server error", details: error.message });
