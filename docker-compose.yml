@@ -1,46 +1,31 @@
-version: '3.8'
+version: "3.8"
 
 services:
-  db:
-    image: postgres:15-alpine
-    container_name: mailwise_db
-    restart: always
-    environment:
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
-      POSTGRES_DB: ${DB_NAME:-mailwise}
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${DB_USER:-postgres}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
   backend:
-    # Update <YOUR_GITHUB_USERNAME> with your actual GitHub username or repository owner
     image: ghcr.io/lakshyagrg23/mailwise-backend:latest
-    container_name: mailwise_backend
-    restart: always
-    depends_on:
-      db:
-        condition: service_healthy
-    ports:
-      - "5000:5000"
+
+    restart: unless-stopped
+
     environment:
-      - DB_HOST=db
+      - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_USER=${DB_USER:-postgres}
-      - DB_PASSWORD=${DB_PASSWORD:-password}
-      - DB_NAME=${DB_NAME:-mailwise}
-      # Other backend environment variables (from .env)
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+
+      - DATABASE_URL=${DATABASE_URL}
+
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
       - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - FRONTEND_URL=${FRONTEND_URL}
 
-volumes:
-  postgres_data:
+    networks:
+      shared-network:
+        aliases:
+          - mailwise-api
+
+networks:
+  shared-network:
+    external: true
