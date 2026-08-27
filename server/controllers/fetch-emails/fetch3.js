@@ -1,8 +1,7 @@
 import { extractBody } from "../helpFunctions/extractBody.js";
 import { google } from "googleapis";
 
-import fs from "fs";
-import path from "path";
+
 
 export const fetch3 = async (req, res) => {
     console.log("Fetching email for user:", req.params);
@@ -80,7 +79,7 @@ export const fetch3 = async (req, res) => {
                             data: base64Data, // Base64 encoded
                         });
 
-                        console.log(`Saved attachment: ${filePath}`);
+                        console.log(`Retrieved attachment: ${part.filename}`);
                     } catch (attachmentError) {
                         console.error(`Error fetching attachment (${part.filename}):`, attachmentError);
                     }

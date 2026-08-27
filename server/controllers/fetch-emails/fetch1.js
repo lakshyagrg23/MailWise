@@ -4,7 +4,6 @@ import axios from 'axios';
 import dotenv from 'dotenv';
 import os from "os";
 import prisma from '../../prisma.js';  
-import { data } from '../helpFunctions/fetchUserData.js';
 
 dotenv.config();
 const THREAD_COUNT=5;
@@ -46,13 +45,12 @@ export const fetch1 = async (req, res) => {
     authClient.setCredentials({ access_token: accessToken });
     const gmail = google.gmail({ version: 'v1', auth: authClient });
 
-    const userInfoResponse = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
-        headers: { Authorization: `Bearer ${accessToken}` }
-    });
-    console.log(userInfoResponse.data)
-
     try {
-        const googleId = await data(accessToken);
+        const userInfoResponse = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        });
+
+        const googleId = userInfoResponse.data.id;
 
         // Retrieve user_id from database
         const user = await prisma.user.findUnique({
@@ -71,7 +69,10 @@ export const fetch1 = async (req, res) => {
             whereClause.category = { equals: category, mode: 'insensitive' };
         }
         
-        const storedEmails = await prisma.emailMetadata.findMany({ where: whereClause });
+        const storedEmails = await prisma.emailMetadata.findMany({
+            where: whereClause,
+            orderBy: { received_date: 'desc' }
+        });
 
         if (storedEmails.length > 0) {
             const serializedEmails = storedEmails.map(email => ({
