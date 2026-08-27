@@ -104,6 +104,49 @@ Return STRICTLY a JSON array matching the following schema with no extra comment
 }
 
 /**
+ * Resolves a safe default category for fallbacks when AI fails or omits an email.
+ * Priority:
+ * 1. An existing category named "Miscellaneous", "Other", or "General" (case-insensitive).
+ * 2. The user's first available category.
+ * 3. Final fallback: "Miscellaneous".
+ *
+ * @param {Array} categories - User category preferences
+ * @returns {string} Safe default category name
+ */
+export function resolveDefaultCategory(categories) {
+    if (!Array.isArray(categories) || categories.length === 0) {
+        return "Miscellaneous";
+    }
+    const match = categories.find(c => {
+        const name = (c.category_name || '').toLowerCase().trim();
+        return name === "miscellaneous" || name === "other" || name === "general";
+    });
+    return match ? match.category_name : (categories[0]?.category_name || "Miscellaneous");
+}
+
+/**
+ * Creates a safe fallback email record when classification fails or an email is omitted.
+ *
+ * @param {Object} email - Raw email object
+ * @param {string} defaultCategory - Fallback category name
+ * @returns {Object} Full email record ready for insertion
+ */
+export function createFallbackEmailRecord(email, defaultCategory) {
+    return {
+        email_id: email.email_id,
+        subject: email.subject || "No Subject",
+        sender: email.sender || "Unknown Sender",
+        category: defaultCategory,
+        emailsummary: email.body
+            ? email.body.slice(0, 150).replace(/\s+/g, ' ') + '...'
+            : "No summary available.",
+        attachname: email.attachName || null,
+        received_date: email.receivedAt ? new Date(email.receivedAt) : new Date(),
+        update: 1n
+    };
+}
+
+/**
  * Classifies a single batch of emails using Gemini 2.5 Flash and reconciles output back to input emails.
  * Guarantees zero dropped emails by falling back safely if an ID is omitted.
  *
@@ -119,10 +162,10 @@ export async function classifySingleBatch(batch, categories) {
     // Build category lookup map (case-insensitive)
     const validCategoryMap = new Map();
     (categories || []).forEach(cat => {
-        validCategoryMap.set(cat.category_name.toLowerCase(), cat.category_name);
+        validCategoryMap.set(cat.category_name.toLowerCase().trim(), cat.category_name);
     });
 
-    const defaultCategory = validCategoryMap.get("miscellaneous") || categories?.[0]?.category_name || "Miscellaneous";
+    const defaultCategory = resolveDefaultCategory(categories);
 
     const prompt = buildBatchPrompt(batch, categories);
     const resultsMap = new Map();
@@ -196,6 +239,8 @@ export async function classifyAllBatchesConcurrently(batches, categories, concur
         return [];
     }
 
+    const defaultCategory = resolveDefaultCategory(categories);
+
     console.log(`[batchClassificationService] Classifying ${batches.length} batches with Gemini concurrency limit ${concurrency}...`);
 
     const settledResults = await asyncPool(concurrency, batches, async (batch, batchIndex) => {
@@ -209,17 +254,8 @@ export async function classifyAllBatchesConcurrently(batches, categories, concur
             classifiedEmails.push(...result.value);
         } else {
             console.error(`[batchClassificationService] Batch ${idx + 1} completely failed:`, result.reason);
-            // Fallback for the failed batch
-            const fallbackBatch = batches[idx].map(email => ({
-                email_id: email.email_id,
-                subject: email.subject || "No Subject",
-                sender: email.sender || "Unknown Sender",
-                category: "Miscellaneous",
-                emailsummary: email.body ? email.body.slice(0, 150) + "..." : "No summary available.",
-                attachname: email.attachName || null,
-                received_date: email.receivedAt ? new Date(email.receivedAt) : new Date(),
-                update: 1n
-            }));
+            // Fallback for the failed batch using the shared category resolution
+            const fallbackBatch = batches[idx].map(email => createFallbackEmailRecord(email, defaultCategory));
             classifiedEmails.push(...fallbackBatch);
         }
     });
