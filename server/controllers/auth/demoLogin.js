@@ -10,11 +10,17 @@ export const demoLogin = async (req, res) => {
                     google_id: 'demo_google_id',
                     name: 'Demo User',
                     email: 'demo@mailwise.app',
-                    profile_pic_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix'
+                    profile_pic_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix',
+                    access_token: 'demo',
+                    refresh_token: 'demo_refresh'
                 }
             });
         } else {
             // Wipe existing demo data for a fresh start on every login
+            await prisma.user.update({
+                where: { id: user.id },
+                data: { access_token: 'demo' }
+            });
             await prisma.categoryPreference.deleteMany({ where: { user_id: user.id } });
             await prisma.emailMetadata.deleteMany({ where: { user_id: user.id } });
         }

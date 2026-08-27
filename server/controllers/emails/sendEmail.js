@@ -1,7 +1,5 @@
-import { google } from 'googleapis';
-import prisma from '../../prisma.js';
+import { getAuthenticatedClient } from '../../services/googleAuthService.js';
 import dotenv from 'dotenv';
-import { data } from '../helpFunctions/fetchUserData.js';
 dotenv.config();
 
 export const sendEmail = async (req, res) => {
@@ -19,29 +17,8 @@ export const sendEmail = async (req, res) => {
     }
 
     try {
-        const auth = new google.auth.OAuth2(
-            process.env.GOOGLE_CLIENT_ID,
-            process.env.GOOGLE_CLIENT_SECRET,
-            process.env.GOOGLE_REDIRECT_URI
-        );
-
-        auth.setCredentials({ access_token: accessToken });
-
-        let senderID = 'me';
-        try {
-            const googleId = await data(accessToken);
-            const user = await prisma.user.findUnique({
-                where: { google_id: googleId },
-                select: { email: true }
-            });
-            if (user?.email) {
-                senderID = user.email;
-            }
-        } catch (authErr) {
-            console.warn("Could not determine user email, falling back to 'me':", authErr.message);
-        }
-
-        const gmail = google.gmail({ version: 'v1', auth });
+        const { gmail, user } = await getAuthenticatedClient({ accessToken });
+        const senderID = user?.email || 'me';
 
         // Handle both stringified body (legacy frontend Compose.jsx) and standard JSON payload
         let to = req.body?.to;

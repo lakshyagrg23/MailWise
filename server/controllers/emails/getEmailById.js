@@ -1,5 +1,5 @@
 import { extractBody } from "../helpFunctions/extractBody.js";
-import { google } from "googleapis";
+import { getAuthenticatedClient } from "../../services/googleAuthService.js";
 
 export const getEmailById = async (req, res) => {
     // Accommodates both :emailId and legacy :userId parameter names
@@ -25,11 +25,8 @@ export const getEmailById = async (req, res) => {
         });
     }
 
-    const authClient = new google.auth.OAuth2();
-    authClient.setCredentials({ access_token: accessToken });
-    const gmail = google.gmail({ version: "v1", auth: authClient });
-
     try {
+        const { gmail } = await getAuthenticatedClient({ accessToken });
         const msg = await gmail.users.messages.get({ userId: "me", id: emailId });
 
         if (!msg.data) {

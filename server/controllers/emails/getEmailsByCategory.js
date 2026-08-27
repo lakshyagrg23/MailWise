@@ -6,6 +6,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import prisma from '../../prisma.js';
 
+import { getAuthenticatedClient } from '../../services/googleAuthService.js';
+
 dotenv.config();
 const THREAD_COUNT = 5;
 
@@ -48,13 +50,11 @@ export const getEmailsByCategory = async (req, res) => {
         });
     }
 
-    const authClient = new google.auth.OAuth2();
-    authClient.setCredentials({ access_token: accessToken });
-    const gmail = google.gmail({ version: 'v1', auth: authClient });
-
     try {
+        const { gmail, accessToken: activeToken } = await getAuthenticatedClient({ accessToken });
+
         const userInfoResponse = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
-            headers: { Authorization: `Bearer ${accessToken}` }
+            headers: { Authorization: `Bearer ${activeToken}` }
         });
 
         const googleId = userInfoResponse.data.id;
@@ -106,7 +106,7 @@ export const getEmailsByCategory = async (req, res) => {
             worker.send({
                 messages: messages.slice(i * Math.ceil(messages.length / THREAD_COUNT), (i + 1) * Math.ceil(messages.length / THREAD_COUNT)),
                 userId: userId,
-                accessToken: accessToken
+                accessToken: activeToken
             });
 
             workerPromises.push(

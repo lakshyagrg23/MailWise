@@ -14,6 +14,9 @@ model User {
   email           String                @unique
   created_at      DateTime?             @default(now())
   profile_pic_url String?
+  access_token    String?
+  refresh_token   String?
+  token_expiry    DateTime?
   update          BigInt?               @default(1)
   emails          EmailMetadata[]
   categories      CategoryPreference[]
