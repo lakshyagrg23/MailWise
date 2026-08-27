@@ -1,15 +1,19 @@
 import { google } from 'googleapis';
-import {fork} from "child_process";
+import { fork } from "child_process";
 import axios from 'axios';
 import dotenv from 'dotenv';
-import os from "os";
-import prisma from '../../prisma.js';  
+import path from 'path';
+import { fileURLToPath } from 'url';
+import prisma from '../../prisma.js';
 
 dotenv.config();
-const THREAD_COUNT=5;
+const THREAD_COUNT = 5;
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const workerPath = path.join(__dirname, 'worker.js');
 
-export const fetch1 = async (req, res) => {
+export const getEmailsByCategory = async (req, res) => {
     const { category } = req.params;
     const accessToken = req.query.access_token;
 
@@ -20,14 +24,17 @@ export const fetch1 = async (req, res) => {
     if (accessToken === "demo") {
         const user = await prisma.user.findUnique({ where: { google_id: 'demo_google_id' } });
         if (!user) return res.status(404).json({ error: "Demo user not found" });
-        
+
         const whereClause = { user_id: user.id };
         if (category !== "All") {
             whereClause.category = { equals: category, mode: 'insensitive' };
         }
-        
-        const storedEmails = await prisma.emailMetadata.findMany({ where: whereClause, orderBy: { received_date: 'desc' } });
-        
+
+        const storedEmails = await prisma.emailMetadata.findMany({
+            where: whereClause,
+            orderBy: { received_date: 'desc' }
+        });
+
         const serializedDemoEmails = storedEmails.map(email => ({
             ...email,
             update: email.update ? email.update.toString() : null
@@ -57,7 +64,7 @@ export const fetch1 = async (req, res) => {
             where: { google_id: googleId },
             select: { id: true }
         });
-        
+
         if (!user) {
             return res.status(404).json({ error: "User not found in database" });
         }
@@ -68,7 +75,7 @@ export const fetch1 = async (req, res) => {
         if (category !== "All") {
             whereClause.category = { equals: category, mode: 'insensitive' };
         }
-        
+
         const storedEmails = await prisma.emailMetadata.findMany({
             where: whereClause,
             orderBy: { received_date: 'desc' }
@@ -79,43 +86,52 @@ export const fetch1 = async (req, res) => {
                 ...email,
                 update: email.update ? email.update.toString() : null
             }));
-            
-            return res.json({ emails: serializedEmails,
-                name:userInfoResponse.data.name,
-                pic:userInfoResponse.data.picture,
-                email:userInfoResponse.data.email
-             });
+
+            return res.json({
+                emails: serializedEmails,
+                name: userInfoResponse.data.name,
+                pic: userInfoResponse.data.picture,
+                email: userInfoResponse.data.email
+            });
         }
 
         // No stored emails found, fetch from Gmail API
         const response = await gmail.users.messages.list({ userId: 'me', maxResults: 15 });
         const messages = response.data.messages || [];
-        
-        let workerPromises=[];
-        for(let i=0;i<THREAD_COUNT;i++){
-            const worker=fork("./controllers/fetch-emails/worker.js");
-            
-            worker.send({ messages: messages.slice(i * Math.ceil(messages.length / THREAD_COUNT), (i + 1) * Math.ceil(messages.length / THREAD_COUNT)), userId: userId,accessToken:accessToken });
+
+        let workerPromises = [];
+        for (let i = 0; i < THREAD_COUNT; i++) {
+            const worker = fork(workerPath);
+
+            worker.send({
+                messages: messages.slice(i * Math.ceil(messages.length / THREAD_COUNT), (i + 1) * Math.ceil(messages.length / THREAD_COUNT)),
+                userId: userId,
+                accessToken: accessToken
+            });
 
             workerPromises.push(
-                new Promise((resolve,reject)=>{
-                    worker.on("message",(data)=>{
-                        resolve(data)
+                new Promise((resolve, reject) => {
+                    worker.on("message", (data) => {
+                        resolve(data);
                     });
-                    worker.on("exit",() => console.log("Worker exited"));
-                    worker.on("error",reject);
+                    worker.on("exit", () => console.log("Worker exited"));
+                    worker.on("error", reject);
                 })
-            )
+            );
         }
-        const results=await Promise.all(workerPromises)
-        const emails=results.flat();
-        
-        res.json({ emails,
-            name:userInfoResponse.data.name,
-            pic:userInfoResponse.data.picture,
-            email:userInfoResponse.data.email });
+        const results = await Promise.all(workerPromises);
+        const emails = results.flat();
+
+        return res.json({
+            emails,
+            name: userInfoResponse.data.name,
+            pic: userInfoResponse.data.picture,
+            email: userInfoResponse.data.email
+        });
     } catch (error) {
         console.error("Error fetching/classifying emails:", error);
-        res.status(500).json({ error: "Failed to fetch/classify emails" });
+        return res.status(500).json({ error: "Failed to fetch/classify emails" });
     }
 };
+
+export const fetch1 = getEmailsByCategory;

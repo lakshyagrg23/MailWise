@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 import { data } from '../helpFunctions/fetchUserData.js';
 dotenv.config();
 
-export const sendEmails = async (req, res) => {
+export const sendEmail = async (req, res) => {
     const accessToken = req.headers.authorization?.split(' ')[1]
         || req.body?.params?.access_token
         || req.body?.access_token
@@ -96,3 +96,5 @@ export const sendEmails = async (req, res) => {
         return res.status(500).json({ error: 'Failed to send email', details: error.message });
     }
 };
+
+export const sendEmails = sendEmail;

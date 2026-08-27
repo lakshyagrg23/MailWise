@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-export const aiEmail = async (req, res) => {
+export const generateAiEmail = async (req, res) => {
     const { type = 'formal', details } = req.query;
 
     if (!details) {
@@ -57,3 +57,5 @@ export const aiEmail = async (req, res) => {
         });
     }
 };
+
+export const aiEmail = generateAiEmail;

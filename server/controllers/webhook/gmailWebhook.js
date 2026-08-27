@@ -1,9 +1,8 @@
-import { google } from "googleapis";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-export const fetchMail = async (req, res) => {
+export const gmailWebhook = async (req, res) => {
     console.log("Gmail Webhook Received");
     try {
         const { message } = req.body || {};
@@ -24,3 +23,5 @@ export const fetchMail = async (req, res) => {
         return res.status(500).json({ error: "Internal server error" });
     }
 };
+
+export const fetchMail = gmailWebhook;
