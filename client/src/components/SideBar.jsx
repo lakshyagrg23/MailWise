@@ -2,6 +2,8 @@ import React from "react";
 import { Drawer } from "@mui/material";
 import SideBarContent from "./SideBarContent";
 
+const SIDEBAR_WIDTH = 270;
+
 const SideBar = ({ openDrawer, setSelectedCategory }) => {
   return (
     <Drawer
@@ -12,21 +14,19 @@ const SideBar = ({ openDrawer, setSelectedCategory }) => {
       variant="persistent"
       sx={{
         "& .MuiDrawer-paper": {
-          width: openDrawer ? 280 : 90,
-          transition: "width 0.3s ease-in-out",
-          borderRight: "1px solid rgba(79, 70, 229, 0.2)", // subtle purple border
+          width: SIDEBAR_WIDTH,
+          transition: "transform 0.25s ease-in-out, width 0.25s ease-in-out",
+          borderRight: "1px solid #e2e8f0",
           marginTop: "64px",
           height: "calc(100vh - 64px)",
           overflowX: "hidden",
-          background: "linear-gradient(135deg, #fefefe 0%, #e0e7ff 100%)",
-          boxShadow: `
-            0 10px 30px rgba(79, 70, 229, 0.1),
-            0 4px 12px rgba(16, 185, 129, 0.08)
-          `,
-          color: "#111827", // dark text for light background
+          backgroundColor: "#ffffff",
+          boxShadow: "none",
+          color: "#0f172a",
           display: "flex",
           flexDirection: "column",
-          paddingTop: "16px",
+          paddingTop: "12px",
+          boxSizing: "border-box"
         },
       }}
     >

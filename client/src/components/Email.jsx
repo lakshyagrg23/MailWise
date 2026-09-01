@@ -81,13 +81,12 @@ const Email = () => {
   return (
     <Box
       sx={{
-        minHeight: '100vh',
-        width: openDrawer ? "calc(100% - 250px)" : "100%",
-        marginLeft: openDrawer ? "250px" : 0,
-        backgroundColor: "#f8fafc",
-        p: { xs: 2, md: 3 },
-        transition: 'all 0.3s ease',
-        boxSizing: 'border-box'
+        width: "100%",
+        maxWidth: "1280px",
+        mx: "auto",
+        p: { xs: 2, sm: 3 },
+        pb: 8,
+        boxSizing: "border-box"
       }}
     >
       {/* Alert Banners */}
