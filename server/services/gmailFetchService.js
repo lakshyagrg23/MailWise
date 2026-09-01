@@ -1,6 +1,7 @@
 import prisma from '../prisma.js';
 import { extractBody } from '../controllers/helpFunctions/extractBody.js';
 import { cleanEmailForAI } from '../utils/emailCleaner.js';
+import { executeWithRetry } from '../utils/retryHelper.js';
 import { asyncPoolValues } from '../utils/asyncPool.js';
 
 // Cap individual cleaned body characters for token-efficient batch classification
@@ -79,10 +80,17 @@ export async function fetchRawEmailsConcurrently(messageIds, gmailClient, concur
 
     const emails = await asyncPoolValues(concurrency, messageIds, async (messageId) => {
         try {
-            const msg = await gmailClient.users.messages.get({
-                userId: 'me',
-                id: messageId,
-                format: 'full'
+            const msg = await executeWithRetry(async (attempt) => {
+                return await gmailClient.users.messages.get({
+                    userId: 'me',
+                    id: messageId,
+                    format: 'full'
+                });
+            }, {
+                maxRetries: 2,
+                baseDelayMs: 500,
+                factor: 2,
+                context: `GmailFetch-${messageId}`
             });
 
             if (!msg?.data?.payload) {

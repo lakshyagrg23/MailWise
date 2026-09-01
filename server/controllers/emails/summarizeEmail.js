@@ -4,6 +4,7 @@ import prisma from '../../prisma.js';
 import { getAuthenticatedClient } from '../../services/googleAuthService.js';
 import { extractBody } from '../helpFunctions/extractBody.js';
 import { cleanEmailForAI } from '../../utils/emailCleaner.js';
+import { executeWithRetry } from '../../utils/retryHelper.js';
 
 dotenv.config();
 
@@ -114,9 +115,16 @@ Instructions:
 - Keep the entire summary under 60-80 words.
 `.trim();
 
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const aiSummary = response.text().trim();
+        const aiSummary = await executeWithRetry(async (attempt) => {
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            return response.text().trim();
+        }, {
+            maxRetries: 3,
+            baseDelayMs: 1000,
+            factor: 2,
+            context: `SummarizeEmail-${emailId}`
+        });
 
         // 5. Cache the AI Summary in PostgreSQL
         if (userId && aiSummary) {

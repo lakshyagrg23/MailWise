@@ -2,6 +2,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import dotenv from 'dotenv';
 import { asyncPool } from '../utils/asyncPool.js';
 import { cleanEmailForAI } from '../utils/emailCleaner.js';
+import { executeWithRetry } from '../utils/retryHelper.js';
 
 dotenv.config();
 
@@ -213,7 +214,7 @@ export function createFallbackEmailRecord(email, defaultCategory) {
  * @param {Array} categories - User categories
  * @returns {Promise<Array>} Classified email records
  */
-export async function classifySingleBatch(batch, categories) {
+export async function classifySingleBatch(batch, categories, batchIndex = 0) {
     if (!Array.isArray(batch) || batch.length === 0) {
         return [];
     }
@@ -226,6 +227,7 @@ export async function classifySingleBatch(batch, categories) {
     const defaultCategory = resolveDefaultCategory(categories);
     const prompt = buildBatchPrompt(batch, categories);
     const resultsMap = new Map();
+    const startTime = Date.now();
 
     try {
         const model = genAI.getGenerativeModel({
@@ -235,9 +237,16 @@ export async function classifySingleBatch(batch, categories) {
             }
         });
 
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text().trim();
+        const text = await executeWithRetry(async (attempt) => {
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            return response.text().trim();
+        }, {
+            maxRetries: 3,
+            baseDelayMs: 1000,
+            factor: 2,
+            context: `Batch-${batchIndex + 1}`
+        });
 
         const cleanedJson = text.replace(/^```json/i, '').replace(/```$/i, '').trim();
         const parsedArray = JSON.parse(cleanedJson);
@@ -249,8 +258,10 @@ export async function classifySingleBatch(batch, categories) {
                 }
             });
         }
+        const elapsed = Date.now() - startTime;
+        console.log(`[batchClassificationService] Batch ${batchIndex + 1} (${batch.length} emails) classified in ${elapsed}ms | AI Matches: ${resultsMap.size}/${batch.length}`);
     } catch (err) {
-        console.error("[batchClassificationService] Gemini batch classification failed, falling back safely:", err.message);
+        console.error(`[batchClassificationService] Batch ${batchIndex + 1} failed after retries, applying fallback:`, err.message);
     }
 
     return batch.map(email => {
@@ -293,7 +304,7 @@ export async function classifyAllBatchesConcurrently(batches, categories, concur
     const defaultCategory = resolveDefaultCategory(categories);
 
     const settledResults = await asyncPool(concurrency, batches, async (batch, batchIndex) => {
-        return classifySingleBatch(batch, categories);
+        return classifySingleBatch(batch, categories, batchIndex);
     });
 
     const classifiedEmails = [];
