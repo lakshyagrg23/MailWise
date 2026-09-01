@@ -1,5 +1,4 @@
 import React, { useState, useContext, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
 import OptionsMenu from "./Optionsmenu";
 import SearchResults from "./SearchResults";
 import {
@@ -10,123 +9,62 @@ import {
     styled,
     Typography,
     IconButton,
-    FormControl,
+    Tooltip,
     Select,
-    MenuItem
+    MenuItem,
+    FormControl
 } from "@mui/material";
-import { motion } from "framer-motion";
 import MenuIcon from "@mui/icons-material/Menu";
 import SearchIcon from "@mui/icons-material/Search";
+import CloseIcon from "@mui/icons-material/Close";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import { emailContext } from "../App";
 import { Refresh } from "./Refresh";
 
 const StyleAppBar = styled(AppBar)`
-    background-color: #f5f7fa;  // very light gray background
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1); // subtle shadow
-    border-bottom: 1px solid #e2e8f0; // subtle border
-    position: relative;
-    z-index: 1;
+    background-color: #ffffff;
+    border-bottom: 1px solid #e2e8f0;
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    box-shadow: none;
 `;
 
-const BrandName = styled(motion(Typography))`
-    font-size: 28px;
-    font-weight: 700;
-    color: #2563eb; // accent blue
+const BrandName = styled(Typography)`
+    font-size: 20px;
+    font-weight: 800;
+    color: #0f172a;
     font-family: "Inter", sans-serif;
-    margin-left: 15px;
+    margin-left: 8px;
     cursor: pointer;
     user-select: none;
-    transition: transform 0.2s ease-in-out;
-
-    &:hover {
-        transform: scale(1.05);
-        color: #3b82f6;
-    }
-`;
-
-const SearchWrapper = styled(motion.div)`
-    background: #fff; // white background for input
-    margin-left: 80px;
-    border-radius: 30px;
-    min-width: 600px;
-    max-width: 720px;
-    height: 50px;
+    letter-spacing: -0.5px;
     display: flex;
     align-items: center;
-    padding: 0 20px;
-    position: relative;
-    border: 1.5px solid #cbd5e1; // subtle border
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
-    transition: all 0.3s ease-in-out;
-    z-index: 50;
+    gap: 2px;
 
-    &:hover {
-        border-color: #3b82f6;
-        box-shadow: 0 0 8px rgba(59, 130, 246, 0.3);
-    }
-
-    & > svg {
-        color: #2563eb; // blue icon color
-        margin-right: 10px;
-    }
-
-    & > input {
-        font-family: "Inter", sans-serif;
-        font-weight: 500;
-        font-size: 1rem;
-        color: #1e293b;
-        width: 100%;
-        border: none;
-        outline: none;
-        background: transparent;
-    }
-`;
-
-const OptionsWrapper = styled(Box)`
-    width: 100%;
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    gap: 15px;
-`;
-
-const StyledFormControl = styled(FormControl)`
-    min-width: 150px;
-    background: #fff;
-    border-radius: 30px;
-    padding: 5px 10px;
-    border: 1.5px solid #cbd5e1;
-    transition: border-color 0.3s ease;
-
-    &:hover {
-        border-color: #3b82f6;
-    }
-`;
-
-const StyledSelect = styled(Select)`
-    color: #1e293b;
-    font-family: "Inter", sans-serif;
-    font-weight: 600;
-
-    & .MuiSelect-icon {
+    & span {
         color: #2563eb;
     }
+`;
 
-    & .MuiOutlinedInput-notchedOutline {
-        border: none;
-    }
+const SearchContainer = styled(Box)`
+    position: relative;
+    display: flex;
+    align-items: center;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 0 12px;
+    height: 42px;
+    width: 100%;
+    max-width: 620px;
+    transition: all 0.2s ease-in-out;
 
-    & .MuiMenuItem-root {
-        background: #fff;
-        color: #1e293b;
-        font-family: "Inter", sans-serif;
-        font-weight: 500;
-        transition: background 0.2s ease;
-
-        &:hover {
-            background-color: #bfdbfe; // light blue highlight
-            color: #1e293b;
-        }
+    &:focus-within {
+        background: #ffffff;
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
     }
 `;
 
@@ -134,13 +72,12 @@ const Header = ({ toggleDrawer }) => {
     const emailhook = useContext(emailContext);
     const [searchQuery, setSearchQuery] = useState("");
     const [showSearchResults, setShowSearchResults] = useState(false);
-    const [cat, setCat] = useState("All");
-    const searchContainerRef = useRef(null);
-    const userId = emailhook.selectedUser || localStorage.getItem("mailwise_user_id");
+    const [selectedFilterCategory, setSelectedFilterCategory] = useState("All");
+    const searchRef = useRef(null);
 
     useEffect(() => {
         const handleClickOutside = (event) => {
-            if (searchContainerRef.current && !searchContainerRef.current.contains(event.target)) {
+            if (searchRef.current && !searchRef.current.contains(event.target)) {
                 setShowSearchResults(false);
             }
         };
@@ -148,93 +85,114 @@ const Header = ({ toggleDrawer }) => {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
+    const handleClearSearch = () => {
+        setSearchQuery("");
+        setShowSearchResults(false);
+    };
+
     return (
-        <StyleAppBar position="static" elevation={0}>
-            <Toolbar>
-                <motion.div
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.95 }}
-                    transition={{ type: "spring", stiffness: 300 }}
-                >
-                    <IconButton onClick={toggleDrawer} aria-label="menu" size="large" edge="start">
-                        <MenuIcon sx={{ color: "#2563eb" }} />
-                    </IconButton>
-                </motion.div>
-
-                <BrandName
-                    variant="h6"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.8 }}
-                    onClick={()=>Refresh(emailhook)}
-                    aria-label="MailWise Home"
-                >
-                    MailWise
-                </BrandName>
-
-                <div
-                    ref={searchContainerRef}
-                    className="relative z-50"
-                    style={{
-                        position: "relative",
-                        display: "flex",
-                        flexDirection: "row",
-                        gap: "15px",
-                    }}
-                >
-                    <SearchWrapper
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ duration: 0.5 }}
+        <StyleAppBar position="sticky" elevation={0}>
+            <Toolbar sx={{ minHeight: '64px', px: { xs: 2, sm: 3 }, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
+                {/* Left: Menu & Brand */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: { xs: 'auto', md: '220px' } }}>
+                    <IconButton
+                        onClick={toggleDrawer}
+                        aria-label="Toggle navigation"
+                        size="small"
+                        sx={{ color: '#475569', '&:hover': { backgroundColor: '#f1f5f9' } }}
                     >
-                        <SearchIcon />
+                        <MenuIcon fontSize="small" />
+                    </IconButton>
+
+                    <BrandName onClick={Refresh} aria-label="MailWise Home">
+                        Mail<span>Wise</span>
+                    </BrandName>
+                </Box>
+
+                {/* Center: Search Bar & Quick Scope Selector */}
+                <Box ref={searchRef} sx={{ flex: 1, display: 'flex', justifyContent: 'center', position: 'relative', maxWidth: '680px' }}>
+                    <SearchContainer>
+                        <SearchIcon sx={{ color: '#64748b', fontSize: 20, mr: 1.5 }} />
                         <InputBase
-                            placeholder="Search"
+                            placeholder="Search emails by subject, sender, or content..."
                             value={searchQuery}
                             onChange={(e) => {
                                 setSearchQuery(e.target.value);
-                                setShowSearchResults(e.target.value.length > 0);
+                                setShowSearchResults(e.target.value.trim().length > 0);
+                            }}
+                            onFocus={() => {
+                                if (searchQuery.trim().length > 0) setShowSearchResults(true);
+                            }}
+                            sx={{
+                                width: '100%',
+                                fontSize: '13.5px',
+                                fontFamily: "'Inter', sans-serif",
+                                color: '#1e293b',
+                                '& input::placeholder': { color: '#94a3b8', opacity: 1 }
                             }}
                             inputProps={{ "aria-label": "search emails" }}
                         />
-                    </SearchWrapper>
 
-                    <StyledFormControl variant="outlined" size="small">
-                        <StyledSelect
-                            labelId="category-label"
-                            id="category-select"
-                            value={cat}
-                            onChange={(e) => setCat(e.target.value)}
-                            displayEmpty
-                            inputProps={{ "aria-label": "select category" }}
-                        >
-                            {emailhook.categories.length > 0 ? (
-                                emailhook.categories.map((category, index) => (
-                                    <MenuItem key={index} value={category.name}>
-                                        {category.name}
+                        {searchQuery && (
+                            <IconButton size="small" onClick={handleClearSearch} sx={{ color: '#94a3b8', p: 0.5 }}>
+                                <CloseIcon sx={{ fontSize: 16 }} />
+                            </IconButton>
+                        )}
+
+                        {/* Inline Category Scope Selector */}
+                        <FormControl size="small" variant="standard" sx={{ ml: 1, minWidth: 90 }}>
+                            <Select
+                                value={selectedFilterCategory}
+                                onChange={(e) => setSelectedFilterCategory(e.target.value)}
+                                disableUnderline
+                                sx={{
+                                    fontSize: '12px',
+                                    fontWeight: 600,
+                                    color: '#475569',
+                                    '& .MuiSelect-select': { py: 0, pr: '18px !important' }
+                                }}
+                            >
+                                <MenuItem value="All">All Mail</MenuItem>
+                                {emailhook.categories?.filter(c => c.name !== "All").map((cat, idx) => (
+                                    <MenuItem key={idx} value={cat.name}>
+                                        {cat.name}
                                     </MenuItem>
-                                ))
-                            ) : (
-                                <MenuItem value="">
-                                    No Categories Available
-                                </MenuItem>
-                            )}
-                        </StyledSelect>
-                    </StyledFormControl>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    </SearchContainer>
 
+                    {/* Search Results Dropdown */}
                     {showSearchResults && (
                         <SearchResults
                             emails={emailhook.emails}
                             searchQuery={searchQuery}
                             setShowSearchResults={setShowSearchResults}
-                            category={cat}
+                            category={selectedFilterCategory}
                         />
                     )}
-                </div>
+                </Box>
 
-                <OptionsWrapper>
+                {/* Right: Refresh & Profile Menu */}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: { xs: 'auto', md: '220px' }, justifyContent: 'flex-end' }}>
+                    <Tooltip title="Sync / Refresh">
+                        <IconButton
+                            size="small"
+                            onClick={Refresh}
+                            sx={{
+                                color: '#475569',
+                                border: '1px solid #e2e8f0',
+                                borderRadius: 2,
+                                p: 1,
+                                '&:hover': { backgroundColor: '#f1f5f9', color: '#2563eb' }
+                            }}
+                        >
+                            <RefreshIcon sx={{ fontSize: 18 }} />
+                        </IconButton>
+                    </Tooltip>
+
                     <OptionsMenu />
-                </OptionsWrapper>
+                </Box>
             </Toolbar>
         </StyleAppBar>
     );

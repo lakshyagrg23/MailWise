@@ -1,292 +1,330 @@
 import React, { useState, useContext } from "react";
 import axios from "axios";
+import {
+  Box,
+  Typography,
+  TextField,
+  Button,
+  IconButton,
+  Tooltip,
+  Divider,
+  CircularProgress
+} from "@mui/material";
+import AddIcon from '@mui/icons-material/Add';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import CheckIcon from '@mui/icons-material/Check';
+import CloseIcon from '@mui/icons-material/Close';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { emailContext } from "../App";
-import { Edit, Save, X, Plus, Info, Trash2 } from "lucide-react";
+import { getRandomColor } from "../content/getColor";
+
+const SYSTEM_PROTECTED = ["all", "promotions", "social", "spam"];
 
 const NewCategory = () => {
   const { categories, setCategories, update, setUpdate, selectedUser } = useContext(emailContext);
   const [editingCategory, setEditingCategory] = useState(null);
   const [editedDescription, setEditedDescription] = useState("");
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
   const [categoryName, setCategoryName] = useState("");
   const [description, setDescription] = useState("");
-  const [selectedCategories, setSelectedCategories] = useState([]);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const userId = selectedUser || localStorage.getItem("mailwise_user_id");
 
   const handleEditClick = (category) => {
     setEditingCategory(category.name);
-    const currentDesc = category.description || category.title || "";
-    setEditedDescription(currentDesc);
+    setEditedDescription(category.description || category.title || "");
   };
 
-  const handleCreateCategory = async () => {
-    if (!categoryName.trim() || !description.trim()) return;
+  const handleCreateCategory = async (e) => {
+    e.preventDefault();
+    if (!categoryName.trim() || !description.trim() || !userId) return;
 
+    setLoading(true);
     try {
       const response = await axios.post(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/categories/${userId}`, {
-        newCategoryName: categoryName,
-        newDescription: description,
-        update:parseInt(update)+1
+        newCategoryName: categoryName.trim(),
+        newDescription: description.trim(),
+        update: parseInt(update || 1) + 1
       });
 
       const newCategory = response.data;
-      let h=parseInt(update)+1
-      setUpdate(h);
-      setCategories([...categories, newCategory]);
-      setIsModalOpen(false);
+      setUpdate(prev => parseInt(prev || 1) + 1);
+      setCategories(prev => [...prev, newCategory]);
       setCategoryName("");
       setDescription("");
+      setIsAdding(false);
     } catch (error) {
       console.error("Error creating category:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleSave = async (name) => {
-    if (!userId || !editedDescription) return;
+  const handleSaveEdit = async (name) => {
+    if (!userId || !editedDescription.trim()) return;
 
+    setLoading(true);
     try {
       const response = await axios.put(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/categories/${userId}/${name}`, {
         newCategoryName: name,
-        newDescription: editedDescription,
-        update:parseInt(update)+1
+        newDescription: editedDescription.trim(),
+        update: parseInt(update || 1) + 1
       });
 
       if (response.status === 200) {
-        setCategories((prev) =>
-          prev.map((c) => (c.name === name ? { ...c, description: editedDescription } : c))
+        setCategories(prev =>
+          prev.map(c => (c.name === name ? { ...c, description: editedDescription.trim(), title: editedDescription.trim() } : c))
         );
-        let h=parseInt(update)+1
-        setUpdate(h);
+        setUpdate(prev => parseInt(prev || 1) + 1);
         setEditingCategory(null);
       }
     } catch (error) {
       console.error("Error updating category:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleAddCategory = () => setIsModalOpen(true);
+  const handleDeleteCategory = async (name) => {
+    if (!userId) return;
+    const confirmDelete = window.confirm(`Are you sure you want to delete the "${name}" category?`);
+    if (!confirmDelete) return;
 
-  const closeModal = () => {
-    const confirmClose = window.confirm("Are you sure you want to discard this new category?");
-    if (confirmClose) {
-      setIsModalOpen(false);
-      setCategoryName("");
-      setDescription("");
-    }
-  };
-
-  const handleCategorySelection = (categoryName) => {
-    setSelectedCategories((prevSelected) =>
-      prevSelected.includes(categoryName)
-        ? prevSelected.filter((name) => name !== categoryName)
-        : [...prevSelected, categoryName]
-    );
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!userId || selectedCategories.length === 0) return;
-
+    setLoading(true);
     try {
-      await Promise.all(
-        selectedCategories.map((categoryName) =>
-          axios.delete(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/categories/${userId}/${categoryName}`,{
-            data:{
-              update:parseInt(update)+1
-            }
-          })
-        )
-      );
-      let h=parseInt(update)+1
-      setUpdate(h);
-      setCategories(categories.filter((category) => !selectedCategories.includes(category.name)));
-      setSelectedCategories([]);
-      setIsDeleteModalOpen(false);
+      await axios.delete(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/categories/${userId}/${name}`, {
+        data: { update: parseInt(update || 1) + 1 }
+      });
+      setUpdate(prev => parseInt(prev || 1) + 1);
+      setCategories(prev => prev.filter(c => c.name !== name));
     } catch (error) {
-      console.error("Error deleting categories:", error);
+      console.error("Error deleting category:", error);
+    } finally {
+      setLoading(false);
     }
   };
+
+  const userCustomCategories = (categories || []).filter(
+    c => !SYSTEM_PROTECTED.includes(c.name?.toLowerCase())
+  );
 
   return (
-    <div className="min-h-screen w-full max-w-5xl mx-auto px-6 py-10 font-inter text-gray-900">
-      <div className="bg-white rounded-xl shadow-md border border-gray-300 p-6">
-        <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
-          <h2 className="text-3xl font-semibold text-blue-600 tracking-wide">Email Categories</h2>
-          <div className="flex flex-wrap gap-4">
-            <button
-              onClick={handleAddCategory}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center transition duration-200 shadow-sm"
-            >
-              <Plus size={18} className="mr-2" />
-              New Category
-            </button>
-            <button
-              onClick={() => setIsDeleteModalOpen(true)}
-              className={`bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center transition duration-200 shadow-sm ${
-                selectedCategories.length === 0 ? "opacity-50 cursor-not-allowed" : ""
-              }`}
-              disabled={selectedCategories.length === 0}
-            >
-              <Trash2 size={18} className="mr-2" />
-              Delete Selected
-            </button>
-          </div>
-        </div>
+    <Box sx={{ minWidth: { xs: '100%', sm: '520px' }, maxWidth: '640px', fontFamily: "'Inter', sans-serif" }}>
+      {/* Modal Title */}
+      <Box sx={{ mb: 2.5 }}>
+        <Typography sx={{ fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
+          Manage Custom Categories
+        </Typography>
+        <Typography sx={{ fontSize: '13px', color: '#64748b' }}>
+          Define custom tags and AI sorting descriptions for incoming emails.
+        </Typography>
+      </Box>
 
-        {categories.filter((c) => c.name !== "All").length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 bg-gray-50 rounded-xl border border-gray-300 shadow-inner">
-            <Info size={48} className="text-blue-400 mb-4" />
-            <h3 className="text-xl font-semibold text-gray-700">No Categories Yet</h3>
-            <p className="text-gray-600 text-sm mb-6 max-w-md text-center">
-              Categories help you organize your emails into a structured, clear view. Create your first category.
-            </p>
-            <button
-              onClick={handleAddCategory}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-md shadow-md transition"
+      {/* Add Category Section */}
+      {!isAdding ? (
+        <Button
+          variant="outlined"
+          fullWidth
+          startIcon={<AddIcon />}
+          onClick={() => setIsAdding(true)}
+          sx={{
+            py: 1.2,
+            mb: 3,
+            borderColor: '#cbd5e1',
+            color: '#2563eb',
+            fontWeight: 600,
+            textTransform: 'none',
+            borderRadius: 2,
+            borderStyle: 'dashed',
+            '&:hover': {
+              borderColor: '#2563eb',
+              backgroundColor: '#f8fafc'
+            }
+          }}
+        >
+          Add New Category
+        </Button>
+      ) : (
+        <Box
+          component="form"
+          onSubmit={handleCreateCategory}
+          sx={{
+            p: 2.5,
+            mb: 3,
+            backgroundColor: '#f8fafc',
+            borderRadius: 2.5,
+            border: '1px solid #e2e8f0'
+          }}
+        >
+          <Typography sx={{ fontSize: '14px', fontWeight: 600, color: '#0f172a', mb: 1.5 }}>
+            Create New Category
+          </Typography>
+
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="Category Name (e.g. Work, Finance, Travel)"
+            value={categoryName}
+            onChange={(e) => setCategoryName(e.target.value)}
+            required
+            sx={{ mb: 1.5, "& .MuiOutlinedInput-root": { borderRadius: 2, backgroundColor: "#ffffff" } }}
+          />
+
+          <TextField
+            fullWidth
+            size="small"
+            multiline
+            minRows={2}
+            placeholder="Description for Gemini classification (e.g. Invoices, receipts, and bank statements)"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            required
+            sx={{ mb: 2, "& .MuiOutlinedInput-root": { borderRadius: 2, backgroundColor: "#ffffff" } }}
+          />
+
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+            <Button
+              size="small"
+              onClick={() => {
+                setIsAdding(false);
+                setCategoryName("");
+                setDescription("");
+              }}
+              sx={{ textTransform: 'none', color: '#64748b', fontWeight: 500 }}
             >
-              Create First Category
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {categories.filter((c) => c.name !== "All").map((category) => {
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              size="small"
+              variant="contained"
+              disabled={loading || !categoryName.trim() || !description.trim()}
+              sx={{
+                backgroundColor: '#2563eb',
+                textTransform: 'none',
+                fontWeight: 600,
+                borderRadius: 2,
+                boxShadow: 'none',
+                '&:hover': { backgroundColor: '#1d4ed8' }
+              }}
+            >
+              {loading ? 'Creating...' : 'Save Category'}
+            </Button>
+          </Box>
+        </Box>
+      )}
+
+      <Divider sx={{ mb: 2.5 }} />
+
+      {/* Existing Categories List */}
+      <Box sx={{ maxHeight: '340px', overflowY: 'auto', pr: 0.5 }}>
+        {userCustomCategories.length > 0 ? (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            {userCustomCategories.map((category) => {
               const isEditing = editingCategory === category.name;
-              const desc = category.description || category.title || "No description yet";
+              const desc = category.description || category.title || "No description provided.";
+              const color = getRandomColor(category.name);
 
               return (
-                <div
+                <Box
                   key={category.name}
-                  className="bg-gray-50 border border-gray-300 p-4 rounded-lg hover:shadow-md transition-shadow duration-300 ease-in-out"
+                  sx={{
+                    p: 2,
+                    borderRadius: 2,
+                    border: '1px solid #e2e8f0',
+                    backgroundColor: '#ffffff',
+                    transition: 'all 0.15s ease',
+                    '&:hover': { borderColor: '#cbd5e1', boxShadow: '0 2px 6px rgba(0,0,0,0.02)' }
+                  }}
                 >
-                  <div className="flex justify-between items-start gap-6">
-                    <div className="w-full">
-                      <h3 className="text-lg font-semibold text-gray-800">{category.name}</h3>
+                  <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 1.5 }}>
+                    {/* Category Label & Details */}
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.2, mb: 0.5 }}>
+                        <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: color }} />
+                        <Typography sx={{ fontWeight: 700, fontSize: '14.5px', color: '#0f172a' }}>
+                          {category.name}
+                        </Typography>
+                      </Box>
+
                       {isEditing ? (
-                        <textarea
+                        <TextField
+                          fullWidth
+                          size="small"
+                          multiline
+                          minRows={2}
                           value={editedDescription}
                           onChange={(e) => setEditedDescription(e.target.value)}
-                          className="mt-2 bg-white border border-gray-300 text-gray-900 p-3 rounded-md w-full h-24 resize-none focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          sx={{ mt: 1, "& .MuiOutlinedInput-root": { borderRadius: 1.5, fontSize: "13px" } }}
                         />
                       ) : (
-                        <p className="text-sm text-gray-600 mt-1">{desc}</p>
+                        <Typography sx={{ fontSize: '13px', color: '#64748b', lineHeight: 1.4 }}>
+                          {desc}
+                        </Typography>
                       )}
-                    </div>
+                    </Box>
 
-                    <div className="flex flex-col items-end gap-2">
+                    {/* Action Controls */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                       {isEditing ? (
                         <>
-                          <button
-                            onClick={() => handleSave(category.name)}
-                            className="bg-green-600 hover:bg-green-700 text-white p-2 rounded-md transition"
-                            title="Save"
-                          >
-                            <Save size={16} />
-                          </button>
-                          <button
-                            onClick={() => setEditingCategory(null)}
-                            className="bg-gray-400 hover:bg-gray-500 text-white p-2 rounded-md transition"
-                            title="Cancel"
-                          >
-                            <X size={16} />
-                          </button>
+                          <Tooltip title="Save Changes">
+                            <IconButton
+                              size="small"
+                              onClick={() => handleSaveEdit(category.name)}
+                              sx={{ color: '#16a34a', '&:hover': { backgroundColor: '#f0fdf4' } }}
+                            >
+                              <CheckIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Cancel">
+                            <IconButton
+                              size="small"
+                              onClick={() => setEditingCategory(null)}
+                              sx={{ color: '#64748b', '&:hover': { backgroundColor: '#f1f5f9' } }}
+                            >
+                              <CloseIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
                         </>
                       ) : (
-                        <button
-                          onClick={() => handleEditClick(category)}
-                          className="bg-blue-600 hover:bg-blue-700 text-white p-2 rounded-md transition"
-                          title="Edit"
-                        >
-                          <Edit size={16} />
-                        </button>
+                        <>
+                          <Tooltip title="Edit Description">
+                            <IconButton
+                              size="small"
+                              onClick={() => handleEditClick(category)}
+                              sx={{ color: '#64748b', '&:hover': { color: '#2563eb', backgroundColor: '#f1f5f9' } }}
+                            >
+                              <EditOutlinedIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Delete Category">
+                            <IconButton
+                              size="small"
+                              onClick={() => handleDeleteCategory(category.name)}
+                              sx={{ color: '#64748b', '&:hover': { color: '#dc2626', backgroundColor: '#fef2f2' } }}
+                            >
+                              <DeleteOutlineIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </>
                       )}
-                      <label className="flex items-center text-sm text-gray-700 mt-2 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={selectedCategories.includes(category.name)}
-                          onChange={() => handleCategorySelection(category.name)}
-                          className="mr-2 rounded border-gray-300"
-                        />
-                        Select
-                      </label>
-                    </div>
-                  </div>
-                </div>
+                    </Box>
+                  </Box>
+                </Box>
               );
             })}
-          </div>
+          </Box>
+        ) : (
+          <Box sx={{ py: 4, textAlign: 'center' }}>
+            <Typography sx={{ fontSize: '13.5px', color: '#64748b' }}>
+              No custom categories yet. Click "Add New Category" above to create one.
+            </Typography>
+          </Box>
         )}
-      </div>
-
-      {/* Modal for New Category */}
-      {isModalOpen && (
-        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-40 backdrop-blur-sm">
-          <div className="bg-white text-gray-900 p-8 rounded-xl shadow-lg border border-gray-300 w-full max-w-lg animate-fadeIn scale-100 transition-transform">
-            <h2 className="text-2xl font-semibold mb-6 text-blue-600">Create New Category</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm mb-1 block text-gray-700">Category Name</label>
-                <input
-                  type="text"
-                  value={categoryName}
-                  onChange={(e) => setCategoryName(e.target.value)}
-                  placeholder="eg. Starlogs, Client AI, Spam Nebula"
-                  className="w-full bg-white border border-gray-300 p-3 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="text-sm mb-1 block text-gray-700">Description</label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="What is this category used for?"
-                  className="w-full bg-white border border-gray-300 p-3 rounded-md h-28 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-            <div className="flex justify-end mt-6 space-x-4">
-              <button
-                onClick={closeModal}
-                className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-5 py-2 rounded-md transition"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateCategory}
-                disabled={!categoryName.trim() || !description.trim()}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-md disabled:opacity-50 transition"
-              >
-                Create
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal for Delete Confirmation */}
-      {isDeleteModalOpen && (
-        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-40 backdrop-blur-sm">
-          <div className="bg-white text-gray-900 p-8 rounded-xl shadow-lg border border-gray-300 w-full max-w-lg animate-fadeIn">
-            <h2 className="text-2xl font-semibold mb-6 text-red-600">Confirm Deletion</h2>
-            <p className="mb-4 text-gray-700">Are you sure you want to delete the selected categories?</p>
-            <div className="flex justify-end mt-6 space-x-4">
-              <button
-                onClick={() => setIsDeleteModalOpen(false)}
-                className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-5 py-2 rounded-md transition"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmDelete}
-                className="bg-red-600 hover:bg-red-700 text-white px-5 py-2 rounded-md transition"
-              >
-                Confirm
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      </Box>
+    </Box>
   );
 };
 

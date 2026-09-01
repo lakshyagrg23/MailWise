@@ -1,116 +1,152 @@
-import React, { useContext, useState, useRef, useEffect } from "react";
-import { motion } from "framer-motion";
-import { emailContext } from "../App";
-import DisplayEmail from "./DisplayEmail";
+import React from "react";
+import { Box, Typography, Avatar, List, ListItem } from "@mui/material";
+import { useNavigate } from "react-router-dom";
+import { routes } from "../routes/route";
+import { getRandomColor } from "../content/getColor";
+import dayjs from "dayjs";
 
-const SearchResults = ({ searchQuery, setShowSearchResults, category }) => {
-  const { emails } = useContext(emailContext);
-  const [selectedEmail, setSelectedEmail] = useState(null);
-  const searchResultsRef = useRef(null);
+const SearchResults = ({ emails, searchQuery, setShowSearchResults, category }) => {
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (
-        searchResultsRef.current &&
-        !searchResultsRef.current.contains(event.target)
-      ) {
-        setShowSearchResults(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [setShowSearchResults]);
+  if (!searchQuery || !searchQuery.trim()) return null;
 
-  if (!searchQuery) return null;
+  const query = searchQuery.toLowerCase().trim();
+  const searchWords = query.split(" ").filter(Boolean);
 
-  const searchWords = searchQuery
-    .toLowerCase()
-    .split(" ")
-    .filter(Boolean);
-  const filteredEmails = emails.filter((email) =>
-    searchWords.some(
-      (word) =>
-        ((email.subject &&
-          email.subject.toLowerCase().includes(word)) ||
-          (email.body && email.body.toLowerCase().includes(word))) &&
-        (category === "All" ? true : email.category === category)
-    )
-  );
+  const filteredEmails = (emails || []).filter((email) => {
+    const matchesCategory = category === "All" || (email.category?.toLowerCase() === category.toLowerCase());
+    if (!matchesCategory) return false;
 
-  const ViewtheEmail = (email) => {
-    setSelectedEmail(email);
+    const subject = (email.subject || "").toLowerCase();
+    const sender = (email.sender || "").toLowerCase();
+    const body = (email.body || email.emailsummary || "").toLowerCase();
+
+    return searchWords.every(word => subject.includes(word) || sender.includes(word) || body.includes(word));
+  });
+
+  const handleSelectEmail = (email) => {
+    setShowSearchResults(false);
+    navigate(routes.view.path, { state: { email } });
   };
 
   return (
-    <motion.div
-      ref={searchResultsRef}
-      className="absolute left-0 w-full max-w-2xl top-full mt-3 z-50 max-h-96 overflow-y-auto rounded-xl border"
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
-      style={{
-        background: "rgba(255, 255, 255, 0.95)",
-        boxShadow:
-          "0 0 25px rgba(79, 70, 229, 0.3), 0 0 15px rgba(16, 185, 129, 0.3)",
-        backdropFilter: "blur(10px)",
-        padding: "16px",
-        fontFamily: "'DM Sans', sans-serif",
-        color: "#1f2937", // dark slate gray text
-        borderColor: "#4f46e5", // purple border
+    <Box
+      sx={{
+        position: "absolute",
+        top: "calc(100% + 8px)",
+        left: 0,
+        right: 0,
+        backgroundColor: "#ffffff",
+        borderRadius: 2.5,
+        border: "1px solid #e2e8f0",
+        boxShadow: "0 12px 32px rgba(0, 0, 0, 0.12)",
+        maxHeight: "380px",
+        overflowY: "auto",
+        zIndex: 100,
+        p: 1.5,
+        fontFamily: "'Inter', sans-serif"
       }}
     >
-      <h2
-        className="text-xl mb-3"
-        style={{
-          fontWeight: 700,
-          color: "#4f46e5",
-          textShadow: "0 0 8px #6366f1",
-        }}
-      >
-        Search Results:
-      </h2>
+      {/* Header */}
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 1.5, py: 0.8, borderBottom: "1px solid #f1f5f9" }}>
+        <Typography sx={{ fontSize: "12px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: 0.5 }}>
+          Search Results
+        </Typography>
+        <Typography sx={{ fontSize: "12px", color: "#94a3b8", fontWeight: 500 }}>
+          {filteredEmails.length} {filteredEmails.length === 1 ? "match" : "matches"}
+        </Typography>
+      </Box>
 
+      {/* Results List */}
       {filteredEmails.length > 0 ? (
-        filteredEmails.map((email) => (
-          <motion.div
-            key={email._id}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={() => ViewtheEmail(email)}
-            style={{
-              background: "rgba(79, 70, 229, 0.05)",
-              border: "1.5px solid rgba(79, 70, 229, 0.3)",
-              borderRadius: "12px",
-              padding: "14px 18px",
-              marginBottom: "12px",
-              cursor: "pointer",
-              transition: "all 0.3s ease-in-out",
-              boxShadow: "0 6px 15px rgba(16, 185, 129, 0.15)",
-              display: "flex",
-              flexDirection: "column",
-              gap: "6px",
-            }}
-          >
-            <DisplayEmail email={email} />
-          </motion.div>
-        ))
-      ) : (
-        <p
-          className="text-center text-base mt-4"
-          style={{ color: "#9ca3af", fontStyle: "italic" }}
-        >
-          No matching emails.
-        </p>
-      )}
+        <List sx={{ p: 0, mt: 0.5 }}>
+          {filteredEmails.map((email) => {
+            const senderRaw = email.sender || "Unknown";
+            const senderName = senderRaw.includes("<") ? senderRaw.split("<")[0].replace(/['"]/g, "").trim() : senderRaw;
+            const categoryColor = getRandomColor(email.category || "Miscellaneous");
+            const dateDisplay = email.received_date ? dayjs(email.received_date).format("MMM D") : "";
 
-      {selectedEmail && (
-        <div className="mt-6">
-          <DisplayEmail email={selectedEmail} />
-        </div>
+            return (
+              <ListItem
+                key={email.email_id || email.id}
+                onClick={() => handleSelectEmail(email)}
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  p: 1.2,
+                  borderRadius: 1.5,
+                  cursor: "pointer",
+                  transition: "background 0.15s ease",
+                  "&:hover": { backgroundColor: "#f8fafc" },
+                  gap: 1.5
+                }}
+              >
+                {/* Left: Avatar & Details */}
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1.2, minWidth: 0, flex: 1 }}>
+                  <Avatar
+                    sx={{
+                      width: 28,
+                      height: 28,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      backgroundColor: getRandomColor(senderName),
+                      color: "#ffffff"
+                    }}
+                  >
+                    {senderName[0]?.toUpperCase() || "U"}
+                  </Avatar>
+
+                  <Box sx={{ minWidth: 0, flex: 1 }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <Typography sx={{ fontSize: "13px", fontWeight: 600, color: "#1e293b", whiteSpace: "nowrap" }}>
+                        {senderName}
+                      </Typography>
+                      <Box
+                        sx={{
+                          fontSize: "10px",
+                          fontWeight: 700,
+                          px: 0.8,
+                          py: 0.2,
+                          borderRadius: "9999px",
+                          backgroundColor: `${categoryColor}15`,
+                          color: categoryColor,
+                          textTransform: "uppercase"
+                        }}
+                      >
+                        {email.category}
+                      </Box>
+                    </Box>
+                    <Typography
+                      sx={{
+                        fontSize: "12.5px",
+                        color: "#475569",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis"
+                      }}
+                    >
+                      {email.subject || "(No Subject)"}
+                    </Typography>
+                  </Box>
+                </Box>
+
+                {/* Right: Date */}
+                <Typography sx={{ fontSize: "12px", color: "#94a3b8", whiteSpace: "nowrap" }}>
+                  {dateDisplay}
+                </Typography>
+              </ListItem>
+            );
+          })}
+        </List>
+      ) : (
+        <Box sx={{ py: 4, textAlign: "center" }}>
+          <Typography sx={{ fontSize: "13.5px", color: "#64748b" }}>
+            No emails matching "{searchQuery}"
+          </Typography>
+        </Box>
       )}
-    </motion.div>
+    </Box>
   );
 };
 
