@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import dotenv from 'dotenv';
 import { asyncPool } from '../utils/asyncPool.js';
+import { cleanEmailForAI } from '../utils/emailCleaner.js';
 
 dotenv.config();
 
@@ -19,8 +20,8 @@ export function generateBodySnippet(body, maxChars = 140) {
     if (!body || body.trim().length === 0) {
         return "No preview available.";
     }
-    const clean = body.replace(/\s+/g, ' ').trim();
-    return clean.length > maxChars ? clean.slice(0, maxChars) + '...' : clean;
+    const cleanText = cleanEmailForAI(body, maxChars * 2).replace(/\s+/g, ' ').trim();
+    return cleanText.length > maxChars ? cleanText.slice(0, maxChars) + '...' : cleanText;
 }
 
 /**

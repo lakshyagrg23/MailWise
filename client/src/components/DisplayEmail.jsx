@@ -103,7 +103,10 @@ const formatFullTimestamp = (dateValue) => {
 const DisplayEmail = ({ email }) => {
   const navigate = useNavigate();
   const [showSummary, setShowSummary] = useState(false);
-  const [summaryText, setSummaryText] = useState(email.emailsummary || '');
+  const initialAiSummary = (email.emailsummary && (email.emailsummary.includes('•') || email.emailsummary.includes('Action Item:'))) 
+    ? email.emailsummary 
+    : '';
+  const [summaryText, setSummaryText] = useState(initialAiSummary);
   const [loadingSummary, setLoadingSummary] = useState(false);
 
   const senderName = email.sender?.includes('<')
@@ -123,8 +126,8 @@ const DisplayEmail = ({ email }) => {
 
     setShowSummary(true);
 
-    // If summary is already rich / bulleted, don't re-fetch
-    if (summaryText && (summaryText.includes('•') || summaryText.length > 160)) {
+    // If summary is already a structured rich summary, don't re-fetch
+    if (summaryText && (summaryText.includes('•') || summaryText.includes('Action Item:'))) {
       return;
     }
 
@@ -225,7 +228,7 @@ const DisplayEmail = ({ email }) => {
                 fontFamily: "'Inter', sans-serif"
               }}
             >
-              — {email.emailsummary ? email.emailsummary.replace(/\s+/g, ' ').slice(0, 90) : ''}
+              — {email.emailsummary ? email.emailsummary.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 90) : ''}
             </Typography>
           </Box>
         </Box>

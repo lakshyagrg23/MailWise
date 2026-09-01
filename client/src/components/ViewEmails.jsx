@@ -36,8 +36,11 @@ const ViewEmails = () => {
   const [attachments, setAttachments] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Summary State
-  const [summary, setSummary] = useState(email?.emailsummary || '');
+  // Summary State (only initialize if real AI summary exists)
+  const initialAiSummary = (email?.emailsummary && (email.emailsummary.includes('•') || email.emailsummary.includes('Action Item:'))) 
+    ? email.emailsummary 
+    : '';
+  const [summary, setSummary] = useState(initialAiSummary);
   const [loadingSummary, setLoadingSummary] = useState(false);
 
   useEffect(() => {
@@ -97,12 +100,6 @@ const ViewEmails = () => {
     }
   };
 
-  useEffect(() => {
-    if (email?.email_id && (!summary || (!summary.includes('•') && summary.length < 160))) {
-      handleGenerateSummary();
-    }
-  }, [email?.email_id]);
-
   const deleteEmail = () => {
     if (!email?.email_id && !email?._id) return;
     setEmails(prev => prev.filter(e => (e.email_id || e._id) !== (email.email_id || email._id)));
@@ -129,7 +126,7 @@ const ViewEmails = () => {
     ? dayjs(email.received_date).format('dddd, MMMM D, YYYY [at] h:mm A')
     : 'Unknown Date';
 
-  const isRichSummary = summary && (summary.includes('•') || summary.length > 160);
+  const isRichSummary = summary && (summary.includes('•') || summary.includes('Action Item:'));
 
   return (
     <Box
@@ -252,22 +249,24 @@ const ViewEmails = () => {
               </Typography>
             </Box>
 
-            {!isRichSummary && (
+            {!summary && (
               <Button
                 size="small"
                 variant="outlined"
                 onClick={handleGenerateSummary}
                 disabled={loadingSummary}
-                startIcon={loadingSummary ? <CircularProgress size={12} /> : <AutoAwesomeIcon />}
+                startIcon={loadingSummary ? <CircularProgress size={12} sx={{ color: '#2563eb' }} /> : <AutoAwesomeIcon sx={{ fontSize: 14 }} />}
                 sx={{
                   fontSize: '12px',
                   textTransform: 'none',
                   borderColor: '#2563eb',
                   color: '#2563eb',
-                  fontWeight: 600
+                  fontWeight: 600,
+                  borderRadius: 1.5,
+                  '&:hover': { backgroundColor: '#eff6ff', borderColor: '#1d4ed8' }
                 }}
               >
-                {loadingSummary ? 'Summarizing...' : 'Generate Full Summary'}
+                {loadingSummary ? 'Summarizing...' : 'Generate Summary'}
               </Button>
             )}
           </Box>
@@ -275,11 +274,15 @@ const ViewEmails = () => {
           {loadingSummary ? (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 1 }}>
               <CircularProgress size={16} sx={{ color: '#2563eb' }} />
-              <Typography sx={{ fontSize: '13px', color: '#64748b' }}>Analyzing email content with Gemini...</Typography>
+              <Typography sx={{ fontSize: '13px', color: '#64748b' }}>Generating executive summary with Gemini...</Typography>
             </Box>
-          ) : (
+          ) : summary ? (
             <Typography sx={{ fontSize: '13.5px', color: '#334155', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
-              {summary || 'No summary available for this email.'}
+              {summary}
+            </Typography>
+          ) : (
+            <Typography sx={{ fontSize: '13px', color: '#94a3b8' }}>
+              Click "Generate Summary" above to create an instant AI summary for this email.
             </Typography>
           )}
         </Box>

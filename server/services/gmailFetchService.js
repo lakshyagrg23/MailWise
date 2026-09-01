@@ -1,9 +1,10 @@
 import prisma from '../prisma.js';
 import { extractBody } from '../controllers/helpFunctions/extractBody.js';
+import { cleanEmailForAI } from '../utils/emailCleaner.js';
 import { asyncPoolValues } from '../utils/asyncPool.js';
 
-// Cap individual raw body characters to prevent a single giant email from exhausting prompt token budgets
-const MAX_BODY_CHARS = 4000;
+// Cap individual cleaned body characters for token-efficient batch classification
+const MAX_AI_BODY_CHARS = 1200;
 
 /**
  * Searches payload parts recursively to identify any attachment filename.
@@ -92,10 +93,8 @@ export async function fetchRawEmailsConcurrently(messageIds, gmailClient, concur
             const subject = headers.find(h => h.name.toLowerCase() === 'subject')?.value || 'No Subject';
             const sender = headers.find(h => h.name.toLowerCase() === 'from')?.value || 'Unknown Sender';
             
-            let rawBody = extractBody(msg.data.payload) || '';
-            if (rawBody.length > MAX_BODY_CHARS) {
-                rawBody = rawBody.slice(0, MAX_BODY_CHARS) + '\n... [truncated for classification]';
-            }
+            const rawBody = extractBody(msg.data.payload) || '';
+            const cleanedBody = cleanEmailForAI(rawBody, MAX_AI_BODY_CHARS);
 
             const attachName = findAttachmentName(msg.data.payload);
             const labelIds = msg.data.labelIds || [];
@@ -107,7 +106,7 @@ export async function fetchRawEmailsConcurrently(messageIds, gmailClient, concur
                 email_id: messageId,
                 subject,
                 sender,
-                body: rawBody,
+                body: cleanedBody,
                 attachName,
                 labelIds,
                 receivedAt
