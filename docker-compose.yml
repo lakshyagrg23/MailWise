@@ -13,7 +13,7 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${DB_NAME}
 
-      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL=postgresql://mailwise:${DB_PASSWORD}@postgres:5432/mailwise_db
 
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
