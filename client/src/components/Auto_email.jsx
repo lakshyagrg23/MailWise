@@ -1,89 +1,116 @@
-import React, { useState, useContext, useEffect } from 'react';
+import React, { useState, useContext } from 'react';
 import axios from 'axios';
+import {
+  Box,
+  Typography,
+  TextField,
+  Button,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  CircularProgress
+} from '@mui/material';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { emailContext } from '../App';
 
 const Auto_email = () => {
-    const { data, setData, openAi, setOpenAi } = useContext(emailContext);
-    const [type, setType] = useState('');
+    const { setData, setOpenAi } = useContext(emailContext);
+    const [type, setType] = useState('formal');
     const [description, setDescription] = useState('');
+    const [loading, setLoading] = useState(false);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (!description.trim()) return;
+
+        setLoading(true);
         try {
             const response = await axios.get(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/fetch-email/email`, {
                 params: { type: type, details: description },
             });
-            console.log(response.data);
-            setData(response.data);
-            setTimeout(() => {
-                setData(response.data);
+            if (response.data) {
+                setData(prev => ({ ...prev, ...response.data }));
                 setOpenAi(false);
-            }, 1000);
+            }
         } catch (error) {
-            console.error('Error fetching email body:', error);
+            console.error('Error generating email draft:', error);
+        } finally {
+            setLoading(false);
         }
     };
 
-    useEffect(() => {
-        console.log('Updated data:', data);
-    }, [data]);
-
     return (
-        <div className="flex items-center justify-center h-130 bg-gradient-to-br from-[#1B1F3B] via-[#2A2E65] to-[#1B1F3B] px-4 relative overflow-hidden">
-            {/* Stars Layer */}
-            <div className="absolute top-0 left-0 w-full h-full bg-[url('/stars.gif')] opacity-10 z-0" />
+        <Box sx={{ p: { xs: 1, sm: 2 }, fontFamily: "'Inter', sans-serif" }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2.5 }}>
+                <AutoAwesomeIcon sx={{ color: '#2563eb', fontSize: 22 }} />
+                <Typography sx={{ fontWeight: 700, fontSize: '18px', color: '#0f172a' }}>
+                    AI Draft Assistant
+                </Typography>
+            </Box>
 
-            <form
-                onSubmit={handleSubmit}
-                className="relative z-10 backdrop-blur-lg bg-white/5 border border-white/10 shadow-2xl rounded-3xl p-10 w-full max-w-xl space-y-8"
-            >
-                <h2 className="text-3xl font-bold text-white text-center tracking-wide drop-shadow-glow">
-                    🌌 Auto Email Generator
-                </h2>
+            <Typography sx={{ fontSize: '13.5px', color: '#64748b', mb: 3 }}>
+                Describe the key points or intent of your message, and Gemini will generate a polished draft for you.
+            </Typography>
 
-                {/* Type Selection */}
-                <div>
-                    <label htmlFor="type" className="block text-white/80 mb-2 font-medium tracking-wide">
-                        Type of Email
-                    </label>
-                    <select
-                        id="type"
-                        value={type}
-                        onChange={(e) => setType(e.target.value)}
-                        required
-                        className="w-full bg-transparent text-white border border-white/30 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    >
-                        <option value="">Select Type</option>
-                        <option value="formal">Formal</option>
-                        <option value="informal">Informal</option>
-                    </select>
-                </div>
+            <form onSubmit={handleSubmit}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+                    {/* Tone Selection */}
+                    <FormControl size="small" fullWidth>
+                        <InputLabel id="tone-label">Tone & Style</InputLabel>
+                        <Select
+                            labelId="tone-label"
+                            value={type}
+                            label="Tone & Style"
+                            onChange={(e) => setType(e.target.value)}
+                            sx={{ borderRadius: 2 }}
+                        >
+                            <MenuItem value="formal">Formal & Professional</MenuItem>
+                            <MenuItem value="informal">Friendly & Casual</MenuItem>
+                            <MenuItem value="executive">Executive & Direct</MenuItem>
+                            <MenuItem value="inquiry">Sales / Outreach Inquiry</MenuItem>
+                        </Select>
+                    </FormControl>
 
-                {/* Description */}
-                <div>
-                    <label htmlFor="description" className="block text-white/80 mb-2 font-medium tracking-wide">
-                        Description
-                    </label>
-                    <textarea
-                        id="description"
+                    {/* Intent Description */}
+                    <TextField
+                        fullWidth
+                        multiline
+                        minRows={4}
+                        label="What should this email say?"
+                        placeholder="e.g. Schedule a sync with Sarah on Thursday at 2pm to review Q3 roadmap, ask her to bring the analytics deck."
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
-                        placeholder="Describe what the email should include..."
                         required
-                        rows={6}
-                        className="w-full bg-transparent text-white border border-white/30 rounded-xl px-4 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-purple-500 placeholder-white/50"
+                        sx={{
+                            "& .MuiOutlinedInput-root": {
+                                borderRadius: 2,
+                                fontSize: "14px"
+                            }
+                        }}
                     />
-                </div>
 
-                {/* Submit Button */}
-                <button
-                    type="submit"
-                    className="w-full bg-gradient-to-r from-[#FF6EC7] to-[#6A5ACD] hover:from-[#e35aae] hover:to-[#584ac9] text-white font-bold py-2 rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl"
-                >
-                    🚀 Generate Email
-                </button>
+                    {/* Action Button */}
+                    <Button
+                        type="submit"
+                        variant="contained"
+                        disabled={loading || !description.trim()}
+                        startIcon={loading ? <CircularProgress size={16} sx={{ color: '#ffffff' }} /> : <AutoAwesomeIcon sx={{ fontSize: 16 }} />}
+                        sx={{
+                            backgroundColor: '#2563eb',
+                            py: 1.2,
+                            fontWeight: 600,
+                            borderRadius: 2,
+                            textTransform: 'none',
+                            boxShadow: 'none',
+                            '&:hover': { backgroundColor: '#1d4ed8' }
+                        }}
+                    >
+                        {loading ? 'Generating Draft...' : 'Generate Draft'}
+                    </Button>
+                </Box>
             </form>
-        </div>
+        </Box>
     );
 };
 

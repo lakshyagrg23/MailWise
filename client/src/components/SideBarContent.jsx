@@ -1,3 +1,4 @@
+import React, { useState, useContext, useEffect, useMemo } from "react";
 import {
   Box,
   List,
@@ -6,12 +7,10 @@ import {
   DialogContent,
   DialogActions,
   Button,
-  Badge,
-  Typography,
+  Typography
 } from "@mui/material";
 import { CreateOutlined } from "@mui/icons-material";
-import AddCircleIcon from "@mui/icons-material/AddCircle";
-import React, { useState, useContext, useEffect } from "react";
+import TuneIcon from '@mui/icons-material/Tune';
 import NewCategory from "./NewCategory";
 import Compose from "./Compose";
 import { useParams, NavLink } from "react-router-dom";
@@ -27,18 +26,20 @@ const getQueryParam = (param) => {
   return urlParams.get(param);
 };
 
+const SYSTEM_CATEGORIES = ["Promotions", "Social", "Spam"];
+
 const SideBarContent = () => {
   const categoryHook = useContext(emailContext);
   const [openDialog, setOpenDialog] = useState(false);
   const [openPopup, setOpenPopup] = useState(false);
   const { type } = useParams();
-  const userId = getQueryParam("user_id");
+  const activeUserId = categoryHook.selectedUser || localStorage.getItem("mailwise_user_id");
 
   const getCategoryCount = (categoryName) => {
     if (!categoryHook.emails || categoryHook.emails.length === 0) return 0;
     if (categoryName === "All") return categoryHook.emails.length;
     return categoryHook.emails.filter(
-      (email) => email.category === categoryName
+      (email) => email.category?.toLowerCase() === categoryName?.toLowerCase()
     ).length;
   };
 
@@ -46,16 +47,16 @@ const SideBarContent = () => {
   const handlePopupOpen = () => setOpenPopup(true);
   const handlePopupClose = () => setOpenPopup(false);
 
-  const handleSave=async()=>{
-    Refresh()   
-    handlePopupClose()
-  }
+  const handleSave = async () => {
+    Refresh();
+    handlePopupClose();
+  };
 
   useEffect(() => {
     const fetchCategories = async () => {
       try {
         const response = await axios.get(
-          `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/categories/${userId}`
+          `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/categories/${activeUserId}`
         );
         categoryHook.setCategories([
           { name: "All", title: "All Emails" },
@@ -65,100 +66,248 @@ const SideBarContent = () => {
         console.error("Error fetching categories:", error);
       }
     };
-    if (userId) fetchCategories();
-  }, [userId]);
+    if (activeUserId) fetchCategories();
+  }, [activeUserId]);
+
+  // Separate focus categories from system buckets
+  const { focusCategories, systemBuckets } = useMemo(() => {
+    const cats = categoryHook.categories || [{ name: "All" }];
+    const focus = [];
+    const system = [];
+
+    cats.forEach(c => {
+      if (SYSTEM_CATEGORIES.some(sc => sc.toLowerCase() === c.name.toLowerCase())) {
+        system.push(c);
+      } else {
+        focus.push(c);
+      }
+    });
+
+    // Ensure standard system buckets exist if not already in category list
+    SYSTEM_CATEGORIES.forEach(sc => {
+      if (!system.some(s => s.name.toLowerCase() === sc.toLowerCase())) {
+        system.push({ name: sc });
+      }
+    });
+
+    return { focusCategories: focus, systemBuckets: system };
+  }, [categoryHook.categories]);
 
   return (
-    <motion.div
-      initial={{ x: -60, opacity: 0 }}
-      animate={{ x: 0, opacity: 1 }}
-      transition={{ duration: 0.6, ease: "easeOut" }}
-      className="flex flex-col h-full px-4 py-5"
-      style={{
-        fontFamily: "'DM Sans', sans-serif",
-        backgroundColor: "#fefefe",
-        borderRadius: "16px 0 0 16px",
-        boxShadow:
-          "0 10px 20px rgba(79, 70, 229, 0.15), 0 6px 6px rgba(16, 185, 129, 0.1)",
-        color: "#111827",
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        px: 2,
+        py: 2.5,
+        backgroundColor: "#ffffff",
+        borderRight: "1px solid #e2e8f0",
+        fontFamily: "'Inter', sans-serif"
       }}
     >
       {/* Compose Button */}
-      <motion.button
+      <Button
+        variant="contained"
         onClick={onComposeClick}
-        className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-6 py-3 text-lg font-semibold flex items-center gap-3 transition-all duration-300 shadow-lg"
-        whileHover={{ y: -3 }}
-        whileTap={{ scale: 0.95 }}
-        style={{
-          boxShadow: "0 4px 12px rgba(79, 70, 229, 0.5)",
+        startIcon={<CreateOutlined />}
+        sx={{
+          backgroundColor: "#2563eb",
+          color: "#ffffff",
+          borderRadius: 2.5,
+          py: 1.3,
+          fontSize: "15px",
+          fontWeight: 600,
+          textTransform: "none",
+          boxShadow: "0 4px 12px rgba(37, 99, 235, 0.25)",
+          "&:hover": {
+            backgroundColor: "#1d4ed8"
+          }
         }}
       >
-        <CreateOutlined className="text-white" />
         Compose
-      </motion.button>
+      </Button>
 
-      {/* Categories List */}
-      <List className="mt-8 space-y-2">
-        {categoryHook.categories?.map((data, index) => {
-          const isActive = type === data.name.toLowerCase();
-          const count = getCategoryCount(data.name);
+      {/* Main Focus Categories */}
+      <Box sx={{ mt: 3, flex: 1, overflowY: "auto" }}>
+        <Typography
+          sx={{
+            px: 1.5,
+            mb: 1,
+            fontSize: "11px",
+            fontWeight: 700,
+            color: "#94a3b8",
+            textTransform: "uppercase",
+            letterSpacing: 0.6
+          }}
+        >
+          Inbox & Categories
+        </Typography>
 
-          return (
-            <NavLink
-              key={data.name}
-              to={`${routes.email.path}/${data.name}`}
-              onClick={() => categoryHook.setCategory(data.name)}
-              className="block no-underline"
-            >
-              <motion.div
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.08, duration: 0.35 }}
+        <List sx={{ p: 0, display: "flex", flexDirection: "column", gap: 0.5 }}>
+          {focusCategories.map((data) => {
+            const isActive = (type?.toLowerCase() === data.name.toLowerCase()) || (!type && data.name === "All");
+            const count = getCategoryCount(data.name);
+
+            return (
+              <NavLink
+                key={data.name}
+                to={`${routes.email.path}/${data.name}`}
+                onClick={() => categoryHook.setCategory(data.name)}
+                style={{ textDecoration: "none" }}
               >
                 <ListItem
-                  className={`flex items-center justify-between px-5 py-3 rounded-xl cursor-pointer transition-all duration-300 ${
-                    isActive
-                      ? "bg-purple-500 shadow-lg text-white scale-[1.04]"
-                      : "hover:bg-purple-100"
-                  }`}
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    px: 1.5,
+                    py: 1,
+                    borderRadius: 2,
+                    cursor: "pointer",
+                    backgroundColor: isActive ? "#eff6ff" : "transparent",
+                    color: isActive ? "#2563eb" : "#334155",
+                    fontWeight: isActive ? 600 : 500,
+                    transition: "all 0.15s ease",
+                    "&:hover": {
+                      backgroundColor: isActive ? "#eff6ff" : "#f8fafc"
+                    }
+                  }}
                 >
-                  <div className="flex items-center gap-4">
-                    {/* Color Dot */}
-                    <span
-                      className="h-4 w-4 rounded-full"
-                      style={{
-                        backgroundColor: getRandomColor(data.name),
-                        boxShadow: `0 0 8px ${getRandomColor(data.name)}88`,
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: 0 }}>
+                    <Box
+                      sx={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        backgroundColor: getRandomColor(data.name)
                       }}
                     />
                     <Typography
-                      variant="subtitle1"
-                      sx={{ fontWeight: "700", color: isActive ? "#fff" : "#374151" }}
+                      sx={{
+                        fontSize: "14px",
+                        fontWeight: isActive ? 600 : 500,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis"
+                      }}
                     >
                       {data.name}
                     </Typography>
-                  </div>
+                  </Box>
 
+                  {count > 0 && (
+                    <Typography
+                      sx={{
+                        fontSize: "12px",
+                        fontWeight: 600,
+                        color: isActive ? "#2563eb" : "#94a3b8"
+                      }}
+                    >
+                      {count}
+                    </Typography>
+                  )}
                 </ListItem>
-              </motion.div>
-            </NavLink>
-          );
-        })}
-      </List>
+              </NavLink>
+            );
+          })}
+        </List>
 
-      {/* Customize Categories Button */}
-      <motion.button
+        {/* System Buckets */}
+        <Typography
+          sx={{
+            px: 1.5,
+            mt: 3,
+            mb: 1,
+            fontSize: "11px",
+            fontWeight: 700,
+            color: "#94a3b8",
+            textTransform: "uppercase",
+            letterSpacing: 0.6
+          }}
+        >
+          System Folders
+        </Typography>
+
+        <List sx={{ p: 0, display: "flex", flexDirection: "column", gap: 0.5 }}>
+          {systemBuckets.map((data) => {
+            const isActive = type?.toLowerCase() === data.name.toLowerCase();
+            const count = getCategoryCount(data.name);
+
+            return (
+              <NavLink
+                key={data.name}
+                to={`${routes.email.path}/${data.name}`}
+                onClick={() => categoryHook.setCategory(data.name)}
+                style={{ textDecoration: "none" }}
+              >
+                <ListItem
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    px: 1.5,
+                    py: 1,
+                    borderRadius: 2,
+                    cursor: "pointer",
+                    backgroundColor: isActive ? "#eff6ff" : "transparent",
+                    color: isActive ? "#2563eb" : "#64748b",
+                    fontWeight: isActive ? 600 : 500,
+                    transition: "all 0.15s ease",
+                    "&:hover": {
+                      backgroundColor: isActive ? "#eff6ff" : "#f8fafc"
+                    }
+                  }}
+                >
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                    <Box
+                      sx={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        backgroundColor: getRandomColor(data.name)
+                      }}
+                    />
+                    <Typography sx={{ fontSize: "14px", fontWeight: isActive ? 600 : 500 }}>
+                      {data.name}
+                    </Typography>
+                  </Box>
+
+                  {count > 0 && (
+                    <Typography sx={{ fontSize: "12px", fontWeight: 600, color: isActive ? "#2563eb" : "#94a3b8" }}>
+                      {count}
+                    </Typography>
+                  )}
+                </ListItem>
+              </NavLink>
+            );
+          })}
+        </List>
+      </Box>
+
+      {/* Customize Categories Trigger */}
+      <Button
+        variant="outlined"
         onClick={handlePopupOpen}
-        className="mt-auto bg-gradient-to-r from-blue-700 to-green-500 text-white rounded-xl px-5 py-3 text-sm font-semibold flex items-center justify-center gap-2 shadow-md transition-transform duration-300 hover:scale-105"
-        whileHover={{ y: -3 }}
-        whileTap={{ scale: 0.95 }}
-        style={{
-          boxShadow: "0 6px 15px rgba(245, 158, 11, 0.5)",
+        startIcon={<TuneIcon />}
+        fullWidth
+        sx={{
+          mt: 2,
+          borderColor: "#e2e8f0",
+          color: "#475569",
+          borderRadius: 2,
+          py: 1,
+          fontSize: "13px",
+          fontWeight: 600,
+          textTransform: "none",
+          "&:hover": {
+            borderColor: "#cbd5e1",
+            backgroundColor: "#f8fafc"
+          }
         }}
       >
-        <AddCircleIcon fontSize="small" />
-        Customize Categories
-      </motion.button>
+        Manage Categories
+      </Button>
 
       {/* Customize Dialog */}
       <Dialog
@@ -166,56 +315,59 @@ const SideBarContent = () => {
         onClose={handlePopupClose}
         PaperProps={{
           sx: {
-            backgroundColor: "#fefefe",
+            backgroundColor: "#ffffff",
             borderRadius: 3,
-            boxShadow:
-              "0 10px 30px rgba(79, 70, 229, 0.25), 0 10px 20px rgba(245, 158, 11, 0.15)",
-            fontFamily: "'DM Sans', sans-serif",
-            color: "#111827",
+            border: "1px solid #e2e8f0",
+            boxShadow: "0 20px 40px rgba(0, 0, 0, 0.1)",
+            fontFamily: "'Inter', sans-serif"
           },
         }}
       >
-        <DialogContent>
+        <DialogContent sx={{ p: 3 }}>
           <NewCategory />
         </DialogContent>
 
-        <DialogActions sx={{ px: 3, pb: 2 }}>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
           <Button
             onClick={handlePopupClose}
             variant="outlined"
             sx={{
-              color: "#4f46e5",
-              borderColor: "#4f46e5",
+              color: "#64748b",
+              borderColor: "#cbd5e1",
+              fontWeight: 600,
+              textTransform: "none",
+              borderRadius: 2,
               "&:hover": {
-                backgroundColor: "rgba(79, 70, 229, 0.1)",
-                borderColor: "#4f46e5",
-              },
-              fontWeight: "600",
+                borderColor: "#94a3b8",
+                backgroundColor: "#f8fafc",
+              }
             }}
           >
-            Cancel
+            Close
           </Button>
           <Button
             onClick={handleSave}
             variant="contained"
             sx={{
-              background: "blue-700",
+              backgroundColor: "#2563eb",
               color: "#fff",
-              boxShadow: "0 0 15px rgba(245, 158, 11, 0.6)",
-              fontWeight: "700",
+              fontWeight: 600,
+              textTransform: "none",
+              borderRadius: 2,
+              boxShadow: "none",
               "&:hover": {
-                background: "blue-700",
+                backgroundColor: "#1d4ed8",
               },
             }}
           >
-            Confirm
+            Apply & Refresh
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* Compose Dialog */}
       <Compose openDialog={openDialog} setOpenDialog={setOpenDialog} />
-    </motion.div>
+    </Box>
   );
 };
 

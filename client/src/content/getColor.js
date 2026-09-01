@@ -1,32 +1,48 @@
-const isLightColor = (hex) => {
-    // Convert hex to RGB
-    const r = parseInt(hex.substr(1, 2), 16);
-    const g = parseInt(hex.substr(3, 2), 16);
-    const b = parseInt(hex.substr(5, 2), 16);
-
-    // Calculate brightness using the relative luminance formula
-    const brightness = (r * 0.299 + g * 0.587 + b * 0.114);
-
-    // Consider a color light if brightness > 200 (adjustable threshold)
-    return brightness > 200;
+// Curated accessible color palette for categories and user avatars
+const categoryColors = {
+  essential: "#dc2626",    // Red
+  finance: "#059669",      // Emerald
+  promotions: "#d97706",   // Amber
+  social: "#0284c7",       // Sky Blue
+  updates: "#6366f1",      // Indigo
+  subscriptions: "#7c3aed",// Purple
+  spam: "#e11d48",         // Rose
+  career: "#2563eb",       // Blue
+  work: "#2563eb",         // Blue
+  academics: "#0891b2",    // Cyan
+  miscellaneous: "#64748b",// Slate
+  all: "#475569"           // Slate
 };
 
-const wordToAsciiSum = (word) => {
-    if (!word || typeof word !== 'string') {
-        console.warn("wordToAsciiSum received invalid input:", word);
-        return 0; // Default value to prevent errors
-    }
-    return word.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+const curatedPalette = [
+  "#2563eb", "#059669", "#7c3aed", "#d97706",
+  "#dc2626", "#0891b2", "#4f46e5", "#c026d3",
+  "#0d9488", "#ea580c", "#475569", "#0284c7"
+];
+
+/**
+ * Returns a consistent, elegant, accessible color for a given category or sender name.
+ *
+ * @param {string} name - Name of category or sender
+ * @returns {string} Hex color code
+ */
+export const getRandomColor = (name) => {
+  if (!name || typeof name !== "string") {
+    return "#64748b";
+  }
+
+  const normalized = name.trim().toLowerCase();
+  if (categoryColors[normalized]) {
+    return categoryColors[normalized];
+  }
+
+  // Deterministic hash to pick from curated palette
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % curatedPalette.length;
+  return curatedPalette[index];
 };
 
-
-export  const getRandomColor = (name) => {
-    const index=wordToAsciiSum(name)
-    const hue = (index * 1) % 360; // Fixed sequence with step of 30°
-    let color;
-    do {
-        color = `hsl(${hue}, 100%, ${index/30}%)`; // Darker colors with 30% lightness
-    } while (isLightColor(color)); // Ensure it's not a light color
-    return color;
-};
-
+export default getRandomColor;

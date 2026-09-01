@@ -17,7 +17,8 @@ export const sendEmail = async (req, res) => {
     }
 
     try {
-        const { gmail, user } = await getAuthenticatedClient({ accessToken });
+        const userId = req.query?.user_id || req.body?.user_id;
+        const { gmail, user } = await getAuthenticatedClient({ accessToken, userId });
         const senderID = user?.email || 'me';
 
         // Handle both stringified body (legacy frontend Compose.jsx) and standard JSON payload

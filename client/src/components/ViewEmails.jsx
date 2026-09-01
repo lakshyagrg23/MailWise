@@ -1,16 +1,31 @@
 import React, { useContext, useEffect, useState } from 'react';
 import axios from 'axios';
-import { Box, Typography, styled, IconButton, Divider, Paper } from '@mui/material';
+import {
+  Box,
+  Typography,
+  IconButton,
+  Divider,
+  Paper,
+  Avatar,
+  Tooltip,
+  CircularProgress,
+  Button
+} from '@mui/material';
 import { useOutletContext, useLocation, useNavigate } from "react-router-dom";
-import { ArrowBack, Delete, Label, Archive, Report, AttachFile } from '@mui/icons-material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import AttachFileIcon from '@mui/icons-material/AttachFile';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import DownloadIcon from '@mui/icons-material/Download';
 import Emailbody from './Emailbody';
 import { emailContext } from "../App";
 import { getRandomColor } from '../content/getColor';
+import dayjs from 'dayjs';
 
 const API_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
 
 const ViewEmails = () => {
-  const { emails, setEmails, accessToken } = useContext(emailContext);
+  const { setEmails, accessToken } = useContext(emailContext);
   const { state } = useLocation();
   const { email: initialEmail } = state || {};
   const { openDrawer } = useOutletContext();
@@ -20,17 +35,22 @@ const ViewEmails = () => {
   const [emailBody, setEmailBody] = useState(null);
   const [attachments, setAttachments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [popupImage, setPopupImage] = useState(null);
-  const [isPopupOpen, setIsPopupOpen] = useState(false);
+
+  // Summary State
+  const [summary, setSummary] = useState(email?.emailsummary || '');
+  const [loadingSummary, setLoadingSummary] = useState(false);
 
   useEffect(() => {
     if (email?.email_id && !emailBody) {
       const fetchEmailData = async () => {
         setLoading(true);
         try {
+          const urlParams = new URLSearchParams(window.location.search);
+          const token = accessToken || urlParams.get('access_token') || localStorage.getItem('access_token');
+
           const response = await axios.get(`${API_URL}/fetch-email/${email.email_id}`, {
             headers: {
-              Authorization: `Bearer ${accessToken}`,
+              Authorization: `Bearer ${token}`,
             },
           });
           if (response.data?.email) {
@@ -49,283 +69,265 @@ const ViewEmails = () => {
     }
   }, [email, emailBody, accessToken]);
 
+  const handleGenerateSummary = async () => {
+    if (!email?.email_id) return;
+    setLoadingSummary(true);
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = accessToken || urlParams.get('access_token') || localStorage.getItem('access_token');
+
+      const res = await axios.get(`${API_URL}/email/summarize/${email.email_id}`, {
+        params: { access_token: token }
+      });
+      if (res.data?.summary) {
+        setSummary(res.data.summary);
+      }
+    } catch (err) {
+      console.error("Failed to generate AI summary:", err);
+    } finally {
+      setLoadingSummary(false);
+    }
+  };
+
   const deleteEmail = () => {
-    if (!email?._id) return;
-    setEmails(prev => prev.filter(e => e._id !== email._id));
+    if (!email?.email_id && !email?._id) return;
+    setEmails(prev => prev.filter(e => (e.email_id || e._id) !== (email.email_id || email._id)));
     navigate(-1);
   };
 
-  const senderName = getSenderName(email.sender || '');
+  if (!email) {
+    return (
+      <Box sx={{ p: 4, textAlign: 'center' }}>
+        <Typography variant="body1" color="text.secondary">No email selected.</Typography>
+        <Button sx={{ mt: 2 }} onClick={() => navigate(-1)} startIcon={<ArrowBackIcon />}>
+          Back to Inbox
+        </Button>
+      </Box>
+    );
+  }
+
+  const senderRaw = email.sender || 'Unknown Sender';
+  const senderName = senderRaw.includes('<') ? senderRaw.split('<')[0].replace(/['"]/g, '').trim() : senderRaw;
+  const senderEmail = senderRaw.includes('<') ? senderRaw.split('<')[1]?.replace('>', '') : '';
+  const categoryColor = getRandomColor(email.category || 'Miscellaneous');
+
+  const formattedDate = email.received_date
+    ? dayjs(email.received_date).format('dddd, MMMM D, YYYY [at] h:mm A')
+    : 'Unknown Date';
+
+  const isRichSummary = summary && (summary.includes('•') || summary.length > 160);
 
   return (
-    <Wrapper style={{ marginLeft: openDrawer ? 250 : 0 }}>
-      <ToolbarContainer>
-        <LeftToolbar>
-          <IconBtn onClick={() => navigate(-1)} title="Back"><ArrowBack /></IconBtn>
-          <IconBtn title="Label"><Label /></IconBtn>
-          <IconBtn title="Archive"><Archive /></IconBtn>
-        </LeftToolbar>
-        <RightToolbar>
-          <IconBtn onClick={deleteEmail} title="Delete"><Delete /></IconBtn>
-          <IconBtn title="Report"><Report /></IconBtn>
-        </RightToolbar>
-      </ToolbarContainer>
+    <Box
+      sx={{
+        minHeight: '100vh',
+        width: openDrawer ? "calc(100% - 250px)" : "100%",
+        marginLeft: openDrawer ? "250px" : 0,
+        backgroundColor: "#f8fafc",
+        p: { xs: 2, md: 3 },
+        boxSizing: 'border-box'
+      }}
+    >
+      <Paper
+        elevation={0}
+        sx={{
+          backgroundColor: "#ffffff",
+          borderRadius: 3,
+          border: "1px solid #e2e8f0",
+          p: { xs: 2.5, md: 3.5 },
+          maxWidth: '1000px',
+          mx: 'auto'
+        }}
+      >
+        {/* Top Action Toolbar */}
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 2, borderBottom: '1px solid #f1f5f9' }}>
+          <Button
+            variant="text"
+            startIcon={<ArrowBackIcon />}
+            onClick={() => navigate(-1)}
+            sx={{ color: '#475569', fontWeight: 600, textTransform: 'none', '&:hover': { backgroundColor: '#f1f5f9' } }}
+          >
+            Back
+          </Button>
 
-      <Divider sx={{ borderColor: '#ddd', mb: 3 }} />
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Tooltip title="Delete Email">
+              <IconButton onClick={deleteEmail} size="small" sx={{ color: '#64748b', '&:hover': { color: '#dc2626' } }}>
+                <DeleteOutlineIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        </Box>
 
-      <Content>
-        <Subject>{email.subject || 'No subject'}</Subject>
-
-        <SenderBox>
-          <SenderDetails>
-            <SenderName>{senderName}</SenderName>
-            <Typography variant="caption" sx={{ color: "rgb(214, 223, 245)"}}>
-              {new Date(email.received_date || Date.now()).toLocaleString('en-US')}
+        {/* Email Header */}
+        <Box sx={{ py: 3 }}>
+          {/* Subject & Category */}
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2, mb: 2 }}>
+            <Typography variant="h5" sx={{ fontWeight: 700, color: '#0f172a', fontSize: '22px', lineHeight: 1.3 }}>
+              {email.subject || '(No Subject)'}
             </Typography>
-          </SenderDetails>
-        </SenderBox>
 
-        <BodyContainer elevation={3}>
-          {loading ? (
-            <Loading>Retrieving encrypted transmission...</Loading>
-          ) : (
-            <Emailbody email={{ ...email, body: emailBody }} />
-          )}
-        </BodyContainer>
+            <Box
+              sx={{
+                fontSize: '11px',
+                fontWeight: 700,
+                px: 1.5,
+                py: 0.5,
+                borderRadius: '9999px',
+                backgroundColor: `${categoryColor}15`,
+                color: categoryColor,
+                border: `1px solid ${categoryColor}30`,
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {email.category || 'Miscellaneous'}
+            </Box>
+          </Box>
 
-        {attachments.length > 0 && (
-          <AttachmentBlock>
-            <Typography variant="h6" sx={{ color: "#f59e0b", fontWeight: 700 }}>
-              <AttachFile sx={{ verticalAlign: "middle", mr: 1, color: "#f59e0b" }} />
-              Attachments
-            </Typography>
-            <Divider sx={{ my: 1, borderColor: "#c4c4c4" }} />
-            <AttachmentList>
-              {attachments.map((attachment, index) => (
-                <AttachmentItem key={index}>
-                  <Typography variant="body2" sx={{ color: "#4f46e5", fontWeight: 600 }}>
-                    {attachment.filename}
+          {/* Sender & Date Bar */}
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Avatar
+                sx={{
+                  width: 40,
+                  height: 40,
+                  fontSize: 15,
+                  fontWeight: 600,
+                  bgcolor: getRandomColor(senderName),
+                  color: '#ffffff'
+                }}
+              >
+                {senderName[0]?.toUpperCase() || 'U'}
+              </Avatar>
+
+              <Box>
+                <Typography sx={{ fontWeight: 600, fontSize: '15px', color: '#1e293b' }}>
+                  {senderName}
+                </Typography>
+                {senderEmail && (
+                  <Typography sx={{ fontSize: '12.5px', color: '#64748b' }}>
+                    {senderEmail}
                   </Typography>
-                  {isImage(attachment.mimeType) ? (
-                    <img
-                      src={`data:${attachment.mimeType};base64,${attachment.data}`}
-                      alt={attachment.filename}
-                      onClick={() => {
-                        setPopupImage(`data:${attachment.mimeType};base64,${attachment.data}`);
-                        setIsPopupOpen(true);
-                      }}
-                      style={{
-                        maxWidth: '200px',
-                        maxHeight: '200px',
-                        borderRadius: '8px',
-                        cursor: 'pointer',
-                        boxShadow: '0 4px 12px rgba(79, 70, 229, 0.4)',
-                        transition: 'transform 0.2s',
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
-                      onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-                    />
-                  ) : (
-                    <DownloadBtn onClick={() => downloadAttachment(attachment)}>Download</DownloadBtn>
-                  )}
-                </AttachmentItem>
-              ))}
-            </AttachmentList>
-          </AttachmentBlock>
-        )}
-      </Content>
+                )}
+              </Box>
+            </Box>
 
-      {isPopupOpen && (
-        <PopupOverlay onClick={() => setIsPopupOpen(false)}>
-          <PopupImage
-            src={popupImage}
-            alt="Preview"
-            onClick={e => e.stopPropagation()}
-          />
-        </PopupOverlay>
-      )}
-    </Wrapper>
+            <Typography sx={{ fontSize: '13px', color: '#64748b', fontWeight: 500 }}>
+              {formattedDate}
+            </Typography>
+          </Box>
+        </Box>
+
+        {/* AI Executive Summary Box */}
+        <Box
+          sx={{
+            backgroundColor: "#f8fafc",
+            border: "1px solid #e2e8f0",
+            borderRadius: 2.5,
+            p: 2.5,
+            mb: 3
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <AutoAwesomeIcon sx={{ fontSize: 18, color: '#2563eb' }} />
+              <Typography sx={{ fontWeight: 700, fontSize: '13px', color: '#1e293b', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                AI Executive Summary
+              </Typography>
+            </Box>
+
+            {!isRichSummary && (
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={handleGenerateSummary}
+                disabled={loadingSummary}
+                startIcon={loadingSummary ? <CircularProgress size={12} /> : <AutoAwesomeIcon />}
+                sx={{
+                  fontSize: '12px',
+                  textTransform: 'none',
+                  borderColor: '#2563eb',
+                  color: '#2563eb',
+                  fontWeight: 600
+                }}
+              >
+                {loadingSummary ? 'Summarizing...' : 'Generate Full Summary'}
+              </Button>
+            )}
+          </Box>
+
+          {loadingSummary ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 1 }}>
+              <CircularProgress size={16} sx={{ color: '#2563eb' }} />
+              <Typography sx={{ fontSize: '13px', color: '#64748b' }}>Analyzing email content with Gemini...</Typography>
+            </Box>
+          ) : (
+            <Typography sx={{ fontSize: '13.5px', color: '#334155', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
+              {summary || 'No summary available for this email.'}
+            </Typography>
+          )}
+        </Box>
+
+        {/* Email Content Body */}
+        {loading ? (
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', py: 8, gap: 2 }}>
+            <CircularProgress size={24} sx={{ color: '#2563eb' }} />
+            <Typography sx={{ fontSize: '14px', color: '#64748b' }}>Loading email content...</Typography>
+          </Box>
+        ) : (
+          <Emailbody email={{ ...email, body: emailBody }} />
+        )}
+
+        {/* Attachments Section */}
+        {attachments && attachments.length > 0 && (
+          <Box sx={{ mt: 3, pt: 2.5, borderTop: '1px solid #f1f5f9' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+              <AttachFileIcon sx={{ fontSize: 18, color: '#475569' }} />
+              <Typography sx={{ fontWeight: 600, fontSize: '14px', color: '#1e293b' }}>
+                Attachments ({attachments.length})
+              </Typography>
+            </Box>
+
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
+              {attachments.map((att, idx) => (
+                <Box
+                  key={idx}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1.5,
+                    p: 1.5,
+                    borderRadius: 2,
+                    border: '1px solid #e2e8f0',
+                    backgroundColor: '#ffffff',
+                    '&:hover': { backgroundColor: '#f8fafc' }
+                  }}
+                >
+                  <AttachFileIcon sx={{ fontSize: 18, color: '#2563eb' }} />
+                  <Typography sx={{ fontSize: '13px', fontWeight: 500, color: '#334155', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {att.filename || `attachment-${idx + 1}`}
+                  </Typography>
+                  {att.data && (
+                    <IconButton
+                      size="small"
+                      component="a"
+                      href={`data:${att.mimeType || 'application/octet-stream'};base64,${att.data}`}
+                      download={att.filename || 'attachment'}
+                      sx={{ color: '#64748b', '&:hover': { color: '#2563eb' } }}
+                    >
+                      <DownloadIcon fontSize="small" />
+                    </IconButton>
+                  )}
+                </Box>
+              ))}
+            </Box>
+          </Box>
+        )}
+      </Paper>
+    </Box>
   );
 };
-
-const downloadAttachment = (attachment) => {
-  const link = document.createElement("a");
-  link.href = `data:${attachment.mimeType};base64,${attachment.data}`;
-  link.download = attachment.filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-};
-
-const isImage = (mimeType) => mimeType.startsWith("image/");
-
-const getSenderName = (sender) => {
-  if (!sender) return 'Unknown Sender';
-  const match = sender.match(/^([^<]+)<([^>]+)>$/);
-  return match ? match[1].trim() : sender.split('@')[0].replace(/[._-]/g, ' ');
-};
-
-// Styled Components
-
-// Styling updates only
-const Wrapper = styled(Box)({
-  width: '100vw',
-  height: '100vh',
-  background: '#fefefe',
-  color: '#1e293b',
-  paddingTop: '20px',
-  fontFamily: "'DM Sans', 'Work Sans', sans-serif",
-  overflowY: 'auto',
-  overflowX: 'hidden',
-});
-
-const ToolbarContainer = styled(Box)({
-  display: 'flex',
-  justifyContent: 'space-between',
-  padding: '12px 40px',
-  backgroundColor: '#4f46e5',
-  boxShadow: '0 4px 8px rgba(79, 70, 229, 0.3)',
-  borderRadius: '0 0 16px 16px',
-});
-
-const IconBtn = styled(IconButton)({
-  color: '#fefefe',
-  transition: 'all 0.25s ease',
-  '&:hover': {
-    color: '#f59e0b',
-    transform: 'scale(1.15)',
-  },
-});
-
-const Subject = styled(Typography)({
-  fontSize: '30px',
-  fontWeight: 800,
-  color: '#4f46e5',
-  marginBottom: '24px',
-});
-
-const SenderBox = styled(Box)({
-  display: 'flex',
-  alignItems: 'center',
-  background: '#1d4ed8',
-  padding: '16px 22px',
-  borderRadius: '14px',
-  boxShadow: '0 6px 16px rgba(16, 185, 129, 0.3)',
-  marginBottom: '20px',
-});
-
-const BodyContainer = styled(Paper)({
-  padding: '24px',
-  background: '#ffffff',
-  borderRadius: '20px',
-  boxShadow: '0 10px 20px rgba(79, 70, 229, 0.2)',
-  transition: 'box-shadow 0.3s ease',
-  '&:hover': {
-    boxShadow: '0 14px 28px rgba(79, 70, 229, 0.3)',
-  },
-});
-
-const AttachmentBlock = styled(Box)({
-  marginTop: '40px',
-  backgroundColor: '#fef3c7',
-  padding: '20px',
-  borderRadius: '16px',
-  boxShadow: '0 4px 12px rgba(245, 158, 11, 0.25)',
-});
-
-const AttachmentItem = styled('div')({
-  textDecoration: 'none',
-  border: '2px dashed #10b981',
-  padding: '12px',
-  borderRadius: '12px',
-  backgroundColor: '#ffffff',
-  boxShadow: '0 4px 8px rgba(16, 185, 129, 0.2)',
-  transition: 'all 0.3s',
-  '&:hover': {
-    transform: 'translateY(-2px)',
-    boxShadow: '0 6px 14px rgba(16, 185, 129, 0.3)',
-  },
-});
-
-const DownloadBtn = styled('button')({
-  marginTop: '10px',
-  padding: '8px 16px',
-  border: 'none',
-  borderRadius: '6px',
-  backgroundColor: '#4f46e5',
-  color: '#fefefe',
-  fontWeight: 600,
-  cursor: 'pointer',
-  transition: 'background-color 0.3s ease, transform 0.2s ease',
-  '&:hover': {
-    backgroundColor: '#4338ca',
-    transform: 'scale(1.05)',
-  },
-});
-
-const PopupOverlay = styled('div')({
-  position: 'fixed',
-  top: 0,
-  left: 0,
-  width: '100vw',
-  height: '100vh',
-  backgroundColor: 'rgba(0, 0, 0, 0.75)',
-  display: 'flex',
-  justifyContent: 'center',
-  alignItems: 'center',
-  zIndex: 1000,
-});
-
-const PopupImage = styled('img')({
-  maxWidth: '90%',
-  maxHeight: '90%',
-  borderRadius: '12px',
-  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
-  objectFit: 'contain',
-  cursor: 'zoom-out',
-});
-
-const LeftToolbar = styled(Box)({
-  display: 'flex',
-  gap: '14px',
-});
-
-const RightToolbar = styled(Box)({
-  display: 'flex',
-  gap: '14px',
-});
-
-const Content = styled(Box)({
-  padding: '40px 60px 60px',
-  maxWidth: '900px',
-  margin: 'auto',
-});
-
-const SenderDetails = styled(Box)({
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 4,
-});
-
-const SenderName = styled(Typography)({
-  fontWeight: 700,
-  fontSize: '18px',
-  color: '#fefefe',
-});
-
-const Loading = styled(Typography)({
-  fontSize: '16px',
-  color: '#6b7280',
-  textAlign: 'center',
-  padding: '20px',
-});
-
-const AttachmentList = styled(Box)({
-  display: 'flex',
-  gap: '20px',
-  flexWrap: 'wrap',
-  marginTop: '10px',
-});
-
 
 export default ViewEmails;

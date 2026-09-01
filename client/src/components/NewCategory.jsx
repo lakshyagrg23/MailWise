@@ -4,7 +4,7 @@ import { emailContext } from "../App";
 import { Edit, Save, X, Plus, Info, Trash2 } from "lucide-react";
 
 const NewCategory = () => {
-  const { categories, setCategories,update,setUpdate } = useContext(emailContext);
+  const { categories, setCategories, update, setUpdate, selectedUser } = useContext(emailContext);
   const [editingCategory, setEditingCategory] = useState(null);
   const [editedDescription, setEditedDescription] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -13,12 +13,7 @@ const NewCategory = () => {
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
-  const getQueryParam = (param) => {
-    const urlParams = new URLSearchParams(window.location.search);
-    return urlParams.get(param);
-  };
-
-  const userId = getQueryParam("user_id");
+  const userId = selectedUser || localStorage.getItem("mailwise_user_id");
 
   const handleEditClick = (category) => {
     setEditingCategory(category.name);

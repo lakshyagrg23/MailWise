@@ -1,260 +1,317 @@
-import React, { useState, useEffect } from 'react';
-import { Typography, Box, styled, Tooltip, Avatar } from "@mui/material";
-import AttachmentIcon from '@mui/icons-material/Attachment';
+import React, { useState } from 'react';
+import { Typography, Box, styled, Tooltip, Avatar, IconButton } from "@mui/material";
+import AttachFileIcon from '@mui/icons-material/AttachFile';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import CloseIcon from '@mui/icons-material/Close';
+import CircularProgress from '@mui/material/CircularProgress';
 import { useNavigate } from 'react-router-dom';
 import { routes } from '../routes/route';
 import { getRandomColor } from '../content/getColor';
 import { motion, AnimatePresence } from 'framer-motion';
+import dayjs from 'dayjs';
+import axios from 'axios';
 
-// Minimalist Professional theme colors
-const bgWhite = '#ffffff';
-const bgHover = '#f3f4f6'; // light gray hover background (#f9fafb is very light)
-const borderColor = '#e5e7eb'; // light border (#e0e0e0 is close)
-const accentBlue = '#2563eb'; // bright blue for highlights
-const textPrimary = '#111827'; // dark gray/black for main text
-const textSecondary = '#4b5563'; // medium gray for secondary text
+const API_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
 
-const Wrapper = styled(Box)`
+const EmailRow = styled(Box)`
   position: relative;
-  padding: 16px 20px;
-  background: ${bgWhite};
+  padding: 12px 20px;
+  background: #ffffff;
   display: flex;
   align-items: center;
   cursor: pointer;
-  border-bottom: 1px solid ${borderColor};
+  border-bottom: 1px solid #f1f5f9;
   width: 100%;
   box-sizing: border-box;
-  transition: background 0.3s ease, box-shadow 0.3s ease;
+  transition: all 0.2s ease-in-out;
 
   &:hover {
-    background: ${bgHover};
-    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.1);
+    background: #f8fafc;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
   }
 `;
 
-const Indicator = styled(motion.div)`
-  font-size: 14px;
-  color: ${bgWhite};
+const CategoryPill = styled(Box)`
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
   border-radius: 9999px;
-  padding: 7px 18px;
-  font-weight: 700;
-  background: ${(props) => props.color || accentBlue};
-  box-shadow: 0 3px 10px rgba(37, 99, 235, 0.3);
+  letter-spacing: 0.3px;
   text-transform: uppercase;
-  letter-spacing: 0.6px;
   white-space: nowrap;
   user-select: none;
+  background-color: ${(props) => `${props.color}15`};
+  color: ${(props) => props.color};
+  border: 1px solid ${(props) => `${props.color}30`};
 `;
 
-const LeftSection = styled(Box)`
+const AttachmentChip = styled(Box)`
   display: flex;
   align-items: center;
-  gap: 12px;
-  flex-basis: 22%;
-  min-width: 200px;
-  max-width: 250px;
-  overflow: hidden;
-`;
-
-const MiddleSection = styled(Box)`
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-basis: 60%;
-  flex-grow: 1;
-  overflow: hidden;
-`;
-
-const RightSection = styled(Box)`
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-  flex-basis: 18%;
-  min-width: 180px;
-`;
-
-const SenderInfo = styled(Box)`
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-`;
-
-const SenderName = styled(Typography)`
-  font-weight: 600;
-  font-size: 15px;
-  color: ${textPrimary};
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-family: 'Inter', sans-serif;
-`;
-
-const SubjectText = styled(Typography)`
-  color: ${textSecondary};
-  font-size: 14px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex-grow: 1;
-  font-family: 'Inter', sans-serif;
-`;
-
-const AttachmentWrapper = styled(Box)`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background-color: #dbeafe;  // light blue #dbeafe (blue-100)
-  border-radius: 8px;
-  padding: 6px 10px;
-  font-size: 14px;
-  color: ${accentBlue};
-  max-width: 160px;
+  gap: 4px;
+  background-color: #f1f5f9;
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 12px;
+  color: #475569;
+  max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: 'Inter', sans-serif;
+  border: 1px solid #e2e8f0;
+
+  & > svg {
+    font-size: 14px;
+    color: #64748b;
+  }
 `;
 
-const SummaryTooltip = styled(motion.div)`
-  position: absolute;
-  top: -65px;
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: ${bgWhite};
-  color: ${accentBlue};
-  padding: 10px 14px;
-  border-radius: 8px;
-  font-size: 13px;
-  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.15);
-  z-index: 999;
-  max-width: 80%;
-  text-align: center;
-  font-family: 'Inter', monospace;
+const SummaryDrawer = styled(motion.div)`
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin: 8px 20px 14px 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  font-family: 'Inter', sans-serif;
+  color: #1e293b;
+  font-size: 13.5px;
+  line-height: 1.6;
 `;
+
+const formatEmailDate = (dateValue) => {
+  if (!dateValue) return '';
+  const d = dayjs(dateValue);
+  if (!d.isValid()) return '';
+
+  const now = dayjs();
+  if (d.isSame(now, 'day')) {
+    return d.format('h:mm A');
+  }
+  if (d.isSame(now, 'year')) {
+    return d.format('MMM D');
+  }
+  return d.format('MM/DD/YYYY');
+};
+
+const formatFullTimestamp = (dateValue) => {
+  if (!dateValue) return '';
+  const d = dayjs(dateValue);
+  return d.isValid() ? d.format('dddd, MMMM D, YYYY [at] h:mm A') : '';
+};
 
 const DisplayEmail = ({ email }) => {
   const navigate = useNavigate();
-  const [hovered, setHovered] = useState(false);
-  const [hoverDelay, setHoverDelay] = useState(null);
-  const [localTime, setLocalTime] = useState('');
+  const [showSummary, setShowSummary] = useState(false);
+  const [summaryText, setSummaryText] = useState(email.emailsummary || '');
+  const [loadingSummary, setLoadingSummary] = useState(false);
 
-  const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const senderName = email.sender?.includes('<')
+    ? email.sender.split('<')[0].replace(/['"]/g, '').trim()
+    : email.sender || 'Unknown';
 
-  useEffect(() => {
-    if (email.received_date) {
-      const dateObj = new Date(email.received_date);
-      const timeString = dateObj.toLocaleString(undefined, { timeZone: userTimeZone });
-      setLocalTime(timeString);
+  const categoryColor = getRandomColor(email.category || 'Miscellaneous');
+  const dateDisplay = formatEmailDate(email.received_date);
+  const fullTimestamp = formatFullTimestamp(email.received_date);
+
+  const handleFetchSummary = async (e) => {
+    e.stopPropagation();
+    if (showSummary) {
+      setShowSummary(false);
+      return;
     }
-  }, [email.received_date, userTimeZone]);
 
-  const senderName = email.sender.includes('<')
-    ? email.sender.split('<')[0].trim()
-    : email.sender;
+    setShowSummary(true);
 
-  const handleMouseEnter = () => {
-    setHoverDelay(setTimeout(() => setHovered(true), 800));
+    // If summary is already rich / bulleted, don't re-fetch
+    if (summaryText && (summaryText.includes('•') || summaryText.length > 160)) {
+      return;
+    }
+
+    setLoadingSummary(true);
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get('access_token') || localStorage.getItem('access_token');
+
+      const response = await axios.get(`${API_URL}/email/summarize/${email.email_id}`, {
+        params: { access_token: token }
+      });
+
+      if (response.data?.summary) {
+        setSummaryText(response.data.summary);
+      }
+    } catch (err) {
+      console.error('Failed to load on-demand summary:', err);
+    } finally {
+      setLoadingSummary(false);
+    }
   };
-
-  const handleMouseLeave = () => {
-    clearTimeout(hoverDelay);
-    setHovered(false);
-  };
-  let hr;
-  if(localTime){
-    if(parseInt(localTime.split(",")[1].split(":")[0])==0)hr=12;
-    else if(parseInt(localTime.split(",")[1].split(":")[0])>12)hr=parseInt(localTime.split(",")[1].split(":")[0])%12;
-    else hr=parseInt(localTime.split(",")[1].split(":")[0])
-  }
 
   return (
-    <Wrapper
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-      onClick={(e) => {
-        if (e.target.type !== 'checkbox' && e.target.tagName !== 'svg') {
+    <Box sx={{ borderBottom: '1px solid #f1f5f9' }}>
+      <EmailRow
+        onClick={() => {
           navigate(routes.view.path, { state: { email } });
-        }
-      }}
-      role="button"
-      tabIndex={0}
-    >
-      <Box sx={{ flexBasis: '10%', minWidth: 90, color: textSecondary, fontSize: 13, userSelect: 'none', fontFamily: 'Inter, sans-serif', marginRight: 1 }}>
-        {(localTime ?hr.toString()+":"+localTime.split(",")[1].split(":")[1].split(":")[0]+
-        (parseInt(localTime.split(",")[1].split(":")[0])<12?"am":"pm") : '') }
-      </Box>
-
-      <LeftSection>
-        <Avatar
-          sx={{
-            width: 36,
-            height: 36,
-            fontSize: 14,
-            bgcolor: getRandomColor(senderName),
-            fontFamily: 'Inter, sans-serif',
-            userSelect: 'none',
-          }}
-        >
-          {senderName[0]}
-        </Avatar>
-        <Tooltip title={senderName}>
-          <SenderInfo>
-            <SenderName>{senderName}</SenderName>
-          </SenderInfo>
-        </Tooltip>
-      </LeftSection>
-
-      <MiddleSection>
-        <Indicator
-          color={getRandomColor(email.category)}
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-        >
-          {email.category}
-        </Indicator>
-
-        <SubjectText
-          dangerouslySetInnerHTML={{ __html: `<strong>${email.subject}</strong>` }}
-        />
-      </MiddleSection>
-
-      {email.attachname && (
-        <RightSection>
-          <Tooltip title={email.attachname}>
-            <AttachmentWrapper>
-              <AttachmentIcon sx={{ fontSize: 22, color: accentBlue }} />
-              <Typography variant="caption">{email.attachname}</Typography>
-            </AttachmentWrapper>
-          </Tooltip>
-        </RightSection>
-      )}
-
-      <AnimatePresence>
-        {hovered && email.emailsummary && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            style={{
-              backgroundColor: '#ffffff', // deep space blue
-              padding: '10px 14px',
-              borderRadius: '10px',
-              marginTop: '8px',
-              fontSize: '16px',
-              marginRight:'13px',
-              color: '#000000', // neon cyan
-              boxShadow: '0 0 20px rgba(127, 219, 255, 0.3)', // glowing sci-fi aura
-              fontFamily: 'Share Tech Mono', // sci-fi terminal vibe
+        }}
+        role="button"
+        tabIndex={0}
+      >
+        {/* Left: Avatar & Sender Name */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: 220, minWidth: 200, overflow: 'hidden' }}>
+          <Avatar
+            sx={{
+              width: 32,
+              height: 32,
+              fontSize: 13,
+              fontWeight: 600,
+              bgcolor: getRandomColor(senderName),
+              color: '#ffffff',
+              userSelect: 'none',
             }}
           >
-            {email.emailsummary}
-          </motion.div>
+            {senderName[0]?.toUpperCase() || 'U'}
+          </Avatar>
+          <Tooltip title={senderName} placement="top">
+            <Typography
+              sx={{
+                fontWeight: 600,
+                fontSize: '14px',
+                color: '#1e293b',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                fontFamily: "'Inter', sans-serif"
+              }}
+            >
+              {senderName}
+            </Typography>
+          </Tooltip>
+        </Box>
+
+        {/* Middle: Category Pill & Subject Preview */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1, minWidth: 0, px: 2 }}>
+          <CategoryPill color={categoryColor}>
+            {email.category || 'Miscellaneous'}
+          </CategoryPill>
+
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0, overflow: 'hidden' }}>
+            <Typography
+              component="span"
+              sx={{
+                fontWeight: 600,
+                fontSize: '14px',
+                color: '#0f172a',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                fontFamily: "'Inter', sans-serif"
+              }}
+            >
+              {email.subject || '(No Subject)'}
+            </Typography>
+
+            <Typography
+              component="span"
+              sx={{
+                fontSize: '13.5px',
+                color: '#64748b',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                fontFamily: "'Inter', sans-serif"
+              }}
+            >
+              — {email.emailsummary ? email.emailsummary.replace(/\s+/g, ' ').slice(0, 90) : ''}
+            </Typography>
+          </Box>
+        </Box>
+
+        {/* Right: Summary Trigger, Attachment & Date */}
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1.5, minWidth: 200 }}>
+          {/* Quick AI Summary Button */}
+          <Tooltip title={showSummary ? "Hide Summary" : "View AI Summary"}>
+            <IconButton
+              size="small"
+              onClick={handleFetchSummary}
+              sx={{
+                color: showSummary ? '#2563eb' : '#94a3b8',
+                backgroundColor: showSummary ? '#eff6ff' : 'transparent',
+                '&:hover': {
+                  color: '#2563eb',
+                  backgroundColor: '#f1f5f9'
+                }
+              }}
+            >
+              <AutoAwesomeIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Tooltip>
+
+          {/* Attachment Badge */}
+          {email.attachname && (
+            <Tooltip title={`Attachment: ${email.attachname}`}>
+              <AttachmentChip>
+                <AttachFileIcon />
+                <Typography variant="caption" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {email.attachname}
+                </Typography>
+              </AttachmentChip>
+            </Tooltip>
+          )}
+
+          {/* Timestamp */}
+          <Tooltip title={fullTimestamp} placement="top">
+            <Typography
+              sx={{
+                fontSize: '13px',
+                fontWeight: 500,
+                color: '#64748b',
+                minWidth: 70,
+                textAlign: 'right',
+                userSelect: 'none',
+                fontFamily: "'Inter', sans-serif"
+              }}
+            >
+              {dateDisplay}
+            </Typography>
+          </Tooltip>
+        </Box>
+      </EmailRow>
+
+      {/* Expandable Structured Summary Card */}
+      <AnimatePresence>
+        {showSummary && (
+          <SummaryDrawer
+            initial={{ opacity: 0, height: 0, marginTop: 0 }}
+            animate={{ opacity: 1, height: 'auto', marginTop: 8 }}
+            exit={{ opacity: 0, height: 0, marginTop: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <AutoAwesomeIcon sx={{ fontSize: 16, color: '#2563eb' }} />
+                <Typography sx={{ fontSize: '13px', fontWeight: 700, color: '#1e293b', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  AI Summary
+                </Typography>
+              </Box>
+              <IconButton size="small" onClick={() => setShowSummary(false)} sx={{ color: '#94a3b8' }}>
+                <CloseIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Box>
+
+            {loadingSummary ? (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 1 }}>
+                <CircularProgress size={16} sx={{ color: '#2563eb' }} />
+                <Typography sx={{ fontSize: '13px', color: '#64748b' }}>Generating executive summary...</Typography>
+              </Box>
+            ) : (
+              <Typography sx={{ fontSize: '13.5px', color: '#334155', whiteSpace: 'pre-line', lineHeight: 1.6 }}>
+                {summaryText || 'No summary available for this email.'}
+              </Typography>
+            )}
+          </SummaryDrawer>
         )}
       </AnimatePresence>
-    </Wrapper>
+    </Box>
   );
 };
 

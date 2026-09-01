@@ -1,45 +1,62 @@
-/* eslint-disable no-unused-vars */
-import { useEffect, useContext, useState } from "react";
+import React, { useEffect, useContext, useState, useMemo } from "react";
 import { useOutletContext } from "react-router-dom";
-import { Box, List, IconButton, Popover, Typography, Alert } from "@mui/material";
+import {
+  Box,
+  List,
+  IconButton,
+  Typography,
+  Alert,
+  CircularProgress,
+  Select,
+  MenuItem,
+  FormControl,
+  Tooltip
+} from "@mui/material";
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import DisplayEmail from "./DisplayEmail";
 import NoMails from "./error/NoMails";
 import { emailContext } from "../App";
-import fetchEmails from "../api/api";
 import { motion } from "framer-motion";
-import ArrowCircleLeftIcon from '@mui/icons-material/ArrowCircleLeft';
-import ArrowCircleRightIcon from '@mui/icons-material/ArrowCircleRight';
-import CheckIcon from '@mui/icons-material/Check';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
-import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
-import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { StaticDatePicker } from '@mui/x-date-pickers/StaticDatePicker';
-import dayjs from 'dayjs';
-
 
 const Email = () => {
-  const [selectedEmails, setSelectedEmails] = useState([]);
-
   const { openDrawer } = useOutletContext();
   const emailhook = useContext(emailContext);
 
-  const [anchorEl, setAnchorEl] = useState(null);
-  const open = Boolean(anchorEl);
-  const id = open ? 'calendar-popover' : undefined;
+  // Pagination States (Gmail-style)
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
-  const urlParams = new URLSearchParams(window.location.search)
+  // Filter emails by active category
+  const filteredEmails = useMemo(() => {
+    if (!Array.isArray(emailhook.emails)) return [];
 
-  const handleDateClick = (event) => {
-    setAnchorEl(event.currentTarget);
-  };
-  const filteredEmails = Array.isArray(emailhook.emails)
-    ? [...(emailhook.category === "All"
-        ? emailhook.emails
-        : emailhook.emails.filter((email) => email.category === emailhook.category))]
-      .sort((a,b)=> new Date(b.received_date) - new Date(a.received_date))
-    : [];
+    let list = emailhook.category === "All"
+      ? emailhook.emails
+      : emailhook.emails.filter((email) => email.category?.toLowerCase() === emailhook.category?.toLowerCase());
 
+    return [...list].sort((a, b) => new Date(b.received_date || 0) - new Date(a.received_date || 0));
+  }, [emailhook.emails, emailhook.category]);
+
+  // Reset to Page 1 when category or email list changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [emailhook.category, emailhook.emails?.length]);
+
+  // Compute pagination slices
+  const totalCount = filteredEmails.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const validCurrentPage = Math.min(currentPage, totalPages);
+
+  const startIdx = totalCount === 0 ? 0 : (validCurrentPage - 1) * pageSize + 1;
+  const endIdx = Math.min(validCurrentPage * pageSize, totalCount);
+
+  const paginatedEmails = useMemo(() => {
+    return filteredEmails.slice((validCurrentPage - 1) * pageSize, validCurrentPage * pageSize);
+  }, [filteredEmails, validCurrentPage, pageSize]);
+
+  // Auto-dismiss alerts
   useEffect(() => {
     if (emailhook.messageSent) {
       const timer = setTimeout(() => {
@@ -47,183 +64,219 @@ const Email = () => {
       }, 4000);
       return () => clearTimeout(timer);
     }
-    if (emailhook.mailsReceived) {
-      const timer = setTimeout(() => {
-        emailhook.setMailsReceived(false);
-      }, 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [emailhook]);
+  }, [emailhook.messageSent]);
 
-  const listAnimation = {
-    hidden: { opacity: 0, y: 10, scale: 0.98 },
-    visible: (i) => ({
-      opacity: 1,
-      y: 0,
-      scale: 1,
-      transition: { delay: i * 0.05, duration: 0.4, ease: "easeOut" },
-    }),
+  const handlePrevPage = () => {
+    if (validCurrentPage > 1) {
+      setCurrentPage(prev => prev - 1);
+    }
   };
 
-
+  const handleNextPage = () => {
+    if (validCurrentPage < totalPages) {
+      setCurrentPage(prev => prev + 1);
+    }
+  };
 
   return (
-    <motion.div
-      className="min-h-screen w-full p-5 rounded-xl"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      style={{
-        marginLeft: openDrawer ? 250 : 0,
+    <Box
+      sx={{
+        minHeight: '100vh',
         width: openDrawer ? "calc(100% - 250px)" : "100%",
-        background: "#f9fafb", // light gray background
-        boxShadow: "0 4px 15px rgba(0,0,0,0.05)",
-        fontFamily: "'Inter', sans-serif",
+        marginLeft: openDrawer ? "250px" : 0,
+        backgroundColor: "#f8fafc",
+        p: { xs: 2, md: 3 },
+        transition: 'all 0.3s ease',
+        boxSizing: 'border-box'
       }}
     >
-      {emailhook.newMailsLoaded && (
-        <div className="w-full py-2 text-sm text-blue-600 bg-blue-50 text-center font-medium animate-pulse rounded-md shadow">
-          Loading new emails...
-        </div>
-        
+      {/* Alert Banners */}
+      {emailhook.messageSent && (
+        <Alert
+          icon={<CheckCircleOutlineIcon fontSize="small" />}
+          severity="success"
+          sx={{ mb: 2, borderRadius: 2, fontWeight: 500, backgroundColor: "#f0fdf4", color: "#166534" }}
+        >
+          Email sent successfully.
+        </Alert>
       )}
-      {/* Header Controls */}
-      <div className="flex items-center gap-4 mb-5">
-        <Popover
-          id={id}
-          open={open}
-          anchorEl={anchorEl}
-          onClose={() => setAnchorEl(null)}
-          anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-          transformOrigin={{ vertical: "top", horizontal: "center" }}
-          PaperProps={{
-            sx: {
-              borderRadius: 2,
-              backgroundColor: "#ffffff",
-              boxShadow: "0 8px 24px rgba(0,0,0,0.1)",
-              color: "#2563eb",
-              p: 1,
-              minWidth: 280,
-            },
+
+      {/* Main Mail Container */}
+      <Box
+        sx={{
+          backgroundColor: "#ffffff",
+          borderRadius: 3,
+          border: "1px solid #e2e8f0",
+          boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
+          overflow: "hidden"
+        }}
+      >
+        {/* Gmail-Style Pagination & Control Toolbar */}
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            px: 2.5,
+            py: 1.5,
+            borderBottom: "1px solid #e2e8f0",
+            backgroundColor: "#ffffff",
+            flexWrap: "wrap",
+            gap: 1.5
           }}
         >
-        </Popover>
-      </div>
+          {/* Left: Category Title & Count */}
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+            <Typography sx={{ fontWeight: 700, fontSize: "16px", color: "#0f172a" }}>
+              {emailhook.category || "All"}
+            </Typography>
+            <Typography sx={{ fontSize: "13px", color: "#64748b", fontWeight: 500 }}>
+              ({totalCount} {totalCount === 1 ? "email" : "emails"})
+            </Typography>
+          </Box>
 
-      {/* Success message */}
-      {emailhook.messageSent && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-          className="mb-5"
-        >
-          <Alert
-            icon={<CheckIcon fontSize="inherit" />}
-            severity="success"
-            sx={{
-              borderRadius: 2,
-              backgroundColor: "#dbeafe",
-              color: "#1e40af",
-              fontWeight: 600,
-              textAlign: "center",
-              boxShadow: "0 4px 8px rgba(59, 130, 246, 0.2)",
-            }}
-          >
-            Your email was sent successfully 🚀
-          </Alert>
-        </motion.div>
-      )}
+          {/* Right: Pagination Controls */}
+          {totalCount > 0 && (
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+              {/* Page Size Selector */}
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Typography sx={{ fontSize: "12px", color: "#64748b", fontWeight: 500 }}>
+                  Per page:
+                </Typography>
+                <FormControl size="small" variant="standard">
+                  <Select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    disableUnderline
+                    sx={{
+                      fontSize: "12.5px",
+                      fontWeight: 600,
+                      color: "#334155",
+                      cursor: "pointer",
+                      "& .MuiSelect-select": { py: 0.2, pr: "20px !important" }
+                    }}
+                  >
+                    <MenuItem value={10}>10</MenuItem>
+                    <MenuItem value={25}>25</MenuItem>
+                    <MenuItem value={50}>50</MenuItem>
+                  </Select>
+                </FormControl>
+              </Box>
 
-      {emailhook.mailsReceived && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-          className="mb-5"
-        >
-          <Alert
-            icon={<CheckIcon fontSize="inherit" />}
-            severity="success"
-            sx={{
-              borderRadius: 2,
-              backgroundColor: "#dbeafe",
-              color: "#1e40af",
-              fontWeight: 600,
-              textAlign: "center",
-              boxShadow: "0 4px 8px rgba(59, 130, 246, 0.2)",
-            }}
-          >
-            {emailhook.message}
-          </Alert>
-        </motion.div>
-      )}
+              {/* Range Counter (e.g. 1–25 of 84) */}
+              <Typography sx={{ fontSize: "13px", color: "#475569", fontWeight: 500, userSelect: "none" }}>
+                {startIdx}–{endIdx} of {totalCount}
+              </Typography>
 
-      {/* Loading state */}
-      {!emailhook.loaded ? (
-        <motion.div
-          className="flex flex-col items-center justify-center h-[60vh]"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-        >
-          <AutoAwesomeIcon
-            sx={{
-              fontSize: 60,
-              color: '#2563eb',
-              animation: 'spin 2s linear infinite',
-            }}
-          />
-          <Typography
-            variant="body1"
-            sx={{ mt: 3, color: '#4b5563', fontFamily: "'Inter', sans-serif" }}
-          >
-            Scanning galaxies for mail signals...
-          </Typography>
-          <style>{`
-            @keyframes spin {
-              0% { transform: rotate(0deg); }
-              100% { transform: rotate(360deg); }
-            }
-          `}</style>
-        </motion.div>
-      ) : (
-        <List sx={{ p: 0 }}>
-          {filteredEmails.length > 0 ? (
-            filteredEmails.map((email, index) => (
-              <motion.div
-                key={email._id}
-                custom={index}
-                variants={listAnimation}
-                initial="hidden"
-                animate="visible"
-                whileHover={{
-                  scale: 1.01,
-                  boxShadow: "0px 6px 15px rgba(37, 99, 235, 0.15)",
-                }}
-                style={{
-                  marginBottom: "12px",
-                  borderRadius: "8px",
-                  overflow: "hidden",
-                }}
-              >
-                <DisplayEmail
-                  email={email}
-                  selectedEmails={selectedEmails}
-                  setSelectedEmails={setSelectedEmails}
-                />
-              </motion.div>
-            ))
-          ) : (
-            <motion.div
-              className="w-full h-[60vh] flex justify-center items-center"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-            >
-              <NoMails />
-            </motion.div>
+              {/* Navigation Buttons */}
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                <Tooltip title="Previous page">
+                  <span>
+                    <IconButton
+                      size="small"
+                      onClick={handlePrevPage}
+                      disabled={validCurrentPage <= 1}
+                      sx={{
+                        color: validCurrentPage <= 1 ? "#cbd5e1" : "#475569",
+                        "&:hover": { backgroundColor: "#f1f5f9" }
+                      }}
+                    >
+                      <ChevronLeftIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+
+                <Tooltip title="Next page">
+                  <span>
+                    <IconButton
+                      size="small"
+                      onClick={handleNextPage}
+                      disabled={validCurrentPage >= totalPages}
+                      sx={{
+                        color: validCurrentPage >= totalPages ? "#cbd5e1" : "#475569",
+                        "&:hover": { backgroundColor: "#f1f5f9" }
+                      }}
+                    >
+                      <ChevronRightIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              </Box>
+            </Box>
           )}
-        </List>
-      )}
-    </motion.div>
+        </Box>
+
+        {/* Content State: Loading, Email Rows, or Empty State */}
+        {!emailhook.loaded ? (
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              height: "400px",
+              gap: 2
+            }}
+          >
+            <CircularProgress size={32} thickness={4} sx={{ color: "#2563eb" }} />
+            <Typography sx={{ fontSize: "14px", color: "#64748b", fontWeight: 500 }}>
+              Loading emails...
+            </Typography>
+          </Box>
+        ) : paginatedEmails.length > 0 ? (
+          <List sx={{ p: 0 }}>
+            {paginatedEmails.map((email) => (
+              <DisplayEmail key={email.email_id || email.id} email={email} />
+            ))}
+          </List>
+        ) : (
+          <Box sx={{ py: 8 }}>
+            <NoMails />
+          </Box>
+        )}
+
+        {/* Bottom Pagination Footer for long lists */}
+        {totalCount > pageSize && (
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "flex-end",
+              px: 2.5,
+              py: 1.5,
+              borderTop: "1px solid #f1f5f9",
+              backgroundColor: "#ffffff",
+              gap: 2
+            }}
+          >
+            <Typography sx={{ fontSize: "13px", color: "#64748b", fontWeight: 500 }}>
+              Page {validCurrentPage} of {totalPages}
+            </Typography>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+              <IconButton
+                size="small"
+                onClick={handlePrevPage}
+                disabled={validCurrentPage <= 1}
+                sx={{ color: validCurrentPage <= 1 ? "#cbd5e1" : "#475569" }}
+              >
+                <ChevronLeftIcon fontSize="small" />
+              </IconButton>
+              <IconButton
+                size="small"
+                onClick={handleNextPage}
+                disabled={validCurrentPage >= totalPages}
+                sx={{ color: validCurrentPage >= totalPages ? "#cbd5e1" : "#475569" }}
+              >
+                <ChevronRightIcon fontSize="small" />
+              </IconButton>
+            </Box>
+          </Box>
+        )}
+      </Box>
+    </Box>
   );
 };
 

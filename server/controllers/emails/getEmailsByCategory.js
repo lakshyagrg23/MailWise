@@ -44,23 +44,37 @@ export const getEmailsByCategory = async (req, res) => {
     }
 
     try {
+        const queryUserId = req.query.user_id;
+
         // 2. Resolve Authenticated Client and User
-        const { gmail, accessToken: activeToken } = await getAuthenticatedClient({ accessToken });
-
-        const userInfoResponse = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
-            headers: { Authorization: `Bearer ${activeToken}` }
+        const { gmail, accessToken: activeToken, user: authUser } = await getAuthenticatedClient({
+            accessToken,
+            userId: queryUserId
         });
 
-        const googleId = userInfoResponse.data.id;
-        const user = await prisma.user.findUnique({
-            where: { google_id: googleId },
-            select: { id: true }
-        });
+        let userId = authUser?.id;
+        let userInfo = null;
 
-        if (!user) {
+        try {
+            const userInfoResponse = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
+                headers: { Authorization: `Bearer ${activeToken}` }
+            });
+            userInfo = userInfoResponse.data;
+
+            if (!userId) {
+                const user = await prisma.user.findUnique({
+                    where: { google_id: userInfo.id },
+                    select: { id: true }
+                });
+                userId = user?.id;
+            }
+        } catch (infoErr) {
+            console.warn("[getEmailsByCategory] UserInfo fetch warning:", infoErr.message);
+        }
+
+        if (!userId) {
             return res.status(404).json({ error: "User not found in database" });
         }
-        const userId = user.id;
 
         // 3. List Latest Message IDs from Gmail (Excluding Trash and Drafts)
         const listResponse = await gmail.users.messages.list({
@@ -124,9 +138,10 @@ export const getEmailsByCategory = async (req, res) => {
 
         return res.json({
             emails: serializedEmails,
-            name: userInfoResponse.data.name,
-            pic: userInfoResponse.data.picture,
-            email: userInfoResponse.data.email
+            name: userInfo?.name || authUser?.name,
+            pic: userInfo?.picture || authUser?.profile_pic_url,
+            email: userInfo?.email || authUser?.email,
+            activeToken: activeToken
         });
 
     } catch (error) {

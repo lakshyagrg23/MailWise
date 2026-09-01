@@ -1,9 +1,20 @@
-
-import React, { useState, useContext,useEffect } from 'react';
+import React, { useContext } from 'react';
 import axios from 'axios';
-import { Dialog,DialogContent,DialogActions, Typography, styled, TextField, Button, IconButton, Slide } from '@mui/material';
+import {
+  Dialog,
+  DialogContent,
+  Typography,
+  styled,
+  TextField,
+  Button,
+  IconButton,
+  Slide,
+  Box
+} from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
+import SendIcon from '@mui/icons-material/Send';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { emailContext } from '../App';
 import Auto_email from './Auto_email';
 
@@ -13,106 +24,40 @@ const Transition = React.forwardRef(function Transition(props, ref) {
 
 const DialogContainer = styled(Dialog)`
   .MuiPaper-root {
-    border-radius: 20px;
+    border-radius: 16px;
     overflow: hidden;
-    background: rgba(15, 23, 42, 0.8); /* dark glass */
-    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(30px);
-    animation: cosmicSlide 0.4s ease;
+    background: #ffffff;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.12);
+    border: 1px solid #e2e8f0;
     width: 95%;
-    max-width: 900px;
-  }
-
-  @keyframes cosmicSlide {
-    from {
-      transform: translateY(100px);
-      opacity: 0;
-    }
-    to {
-      transform: translateY(0);
-      opacity: 1;
-    }
+    max-width: 780px;
   }
 `;
 
 const Header = styled('div')`
-  background: linear-gradient(90deg, #3f51b5, #9c27b0);
-  color: white;
-  padding: 16px 24px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 16px 20px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-weight: bold;
-  font-size: 18px;
-  letter-spacing: 0.5px;
 `;
 
 const Footer = styled('div')`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 24px;
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(10px);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 14px 20px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
 `;
 
 const RecipientWrapper = styled('div')`
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 24px;
+  gap: 12px;
+  padding: 20px;
 `;
-
-const StyledTextField = styled(TextField)`
-  input, textarea {
-    color: white;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 12px;
-    padding: 12px;
-  }
-
-  .MuiInputBase-root {
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.05);
-    backdrop-filter: blur(5px);
-    color: white;
-  }
-
-  .MuiOutlinedInput-notchedOutline {
-    border-color: rgba(255, 255, 255, 0.2);
-  }
-
-  .MuiInputLabel-root {
-    color: rgba(255, 255, 255, 0.4);
-  }
-`;
-
-const SendButton = styled(Button)`
-  background: linear-gradient(to right, #00c6ff, #0072ff);
-  color: white;
-  font-weight: 600;
-  border-radius: 9999px;
-  padding: 10px 30px;
-  transition: all 0.3s ease;
-
-  &:hover {
-    background: linear-gradient(to right, #0072ff, #00c6ff);
-    transform: scale(1.05);
-    box-shadow: 0 0 15px rgba(0, 123, 255, 0.6);
-  }
-`;
-
-const StyledDialog = styled(Dialog)(({ theme }) => ({
-  '& .MuiPaper-root': {
-    background: 'linear-gradient(135deg, #1f1c2c 0%, #928DAB 100%)',
-    color: '#fff',
-    transition: 'all 0.5s ease-in-out',
-    borderRadius: '1rem',
-    boxShadow: '0 0 30px rgba(0,0,0,0.4)',
-    backdropFilter: 'blur(10px)',
-  },
-}));
 
 const Compose = ({ openDialog, setOpenDialog }) => {
   const hook = useContext(emailContext);
@@ -127,38 +72,27 @@ const Compose = ({ openDialog, setOpenDialog }) => {
 
   const closeComposeClick = (e) => {
     e.preventDefault();
-    const payload = {
-      to: hook.data.to,
-      from: "luckygovindrao182@gmail.com",
-      subject: hook.data.subject || "",
-      body: hook.data.body || "",
-      date: new Date(),
-      image: " ",
-      name: "lucky",
-      starred: false,
-      type: "drafts",
-    };
-    saveDraft.call(payload);
-    if (!saveDraft.error) {
-      setOpenDialog(false);
-      hook.setData({});
-    }
+    setOpenDialog(false);
+    hook.setData({});
   };
 
   const sendMail = async (e) => {
     e.preventDefault();
     try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = hook.accessToken || urlParams.get('access_token') || localStorage.getItem('access_token');
+
       const response = await axios.post(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/email/send-emails`, {
-        params: { access_token: hook.accessToken },
+        params: { access_token: token },
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(hook.data),
       });
-      if (response.request.status === 200) {
+      if (response.status === 200 || response.data?.status === 'success') {
         hook.setmessageSent(true);
-        hook.setData([]);
+        hook.setData({});
         setOpenDialog(false);
       } else {
-        console.error("Failed to send email:", response.data.message);
+        console.error("Failed to send email:", response.data?.message);
       }
     } catch (err) {
       console.error("Sending mail error:", err);
@@ -168,85 +102,123 @@ const Compose = ({ openDialog, setOpenDialog }) => {
   return (
     <DialogContainer open={openDialog} TransitionComponent={Transition}>
       <Header>
-        <Typography variant="subtitle1">📡 New Transmission</Typography>
-        <IconButton onClick={closeComposeClick}>
-          <CloseIcon sx={{ color: "white" }} />
+        <Typography sx={{ fontWeight: 700, fontSize: "16px", color: "#0f172a" }}>
+          New Message
+        </Typography>
+        <IconButton size="small" onClick={closeComposeClick} sx={{ color: "#64748b" }}>
+          <CloseIcon fontSize="small" />
         </IconButton>
       </Header>
 
       <RecipientWrapper>
-        <StyledTextField
+        <TextField
           fullWidth
-          placeholder="To"
+          size="small"
+          placeholder="Recipients (To)"
           name="to"
           onChange={onValueChange}
+          value={hook.data?.to || ''}
+          sx={{
+            "& .MuiOutlinedInput-root": {
+              borderRadius: 2,
+              backgroundColor: "#f8fafc",
+              fontSize: "14px"
+            }
+          }}
         />
-        <StyledTextField
+        <TextField
           fullWidth
+          size="small"
           placeholder="Subject"
           name="subject"
           onChange={onValueChange}
-          value={hook.data.subject}
+          value={hook.data?.subject || ''}
+          sx={{
+            "& .MuiOutlinedInput-root": {
+              borderRadius: 2,
+              backgroundColor: "#f8fafc",
+              fontSize: "14px"
+            }
+          }}
         />
-        <StyledTextField
+        <TextField
           fullWidth
           multiline
           minRows={10}
-          placeholder="Compose your galactic message..."
+          placeholder="Write your email here..."
           name="body"
           onChange={onValueChange}
-          value={hook.data.body}
+          value={hook.data?.body || ''}
+          sx={{
+            "& .MuiOutlinedInput-root": {
+              borderRadius: 2,
+              backgroundColor: "#ffffff",
+              fontSize: "14.5px"
+            }
+          }}
         />
       </RecipientWrapper>
 
       <Footer>
-        <SendButton onClick={sendMail}>🚀 Send</SendButton>
-        <SendButton onClick={() => hook.setOpenAi(true)}>✨ Auto-mail</SendButton>
-        <IconButton onClick={() => setOpenDialog(false)}>
-          <DeleteOutlineOutlinedIcon sx={{ color: "white" }} />
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Button
+            variant="contained"
+            onClick={sendMail}
+            endIcon={<SendIcon sx={{ fontSize: 16 }} />}
+            sx={{
+              backgroundColor: '#2563eb',
+              textTransform: 'none',
+              fontWeight: 600,
+              borderRadius: 2,
+              px: 3,
+              boxShadow: 'none',
+              '&:hover': { backgroundColor: '#1d4ed8' }
+            }}
+          >
+            Send
+          </Button>
+
+          <Button
+            variant="outlined"
+            onClick={() => hook.setOpenAi(true)}
+            startIcon={<AutoAwesomeIcon sx={{ fontSize: 16, color: '#2563eb' }} />}
+            sx={{
+              borderColor: '#cbd5e1',
+              color: '#334155',
+              textTransform: 'none',
+              fontWeight: 600,
+              borderRadius: 2,
+              '&:hover': { borderColor: '#2563eb', backgroundColor: '#f8fafc' }
+            }}
+          >
+            AI Draft Assistant
+          </Button>
+        </Box>
+
+        <IconButton size="small" onClick={closeComposeClick} sx={{ color: "#94a3b8", '&:hover': { color: '#dc2626' } }}>
+          <DeleteOutlineOutlinedIcon fontSize="small" />
         </IconButton>
       </Footer>
 
-      <Dialog open={hook.openAi} onClose={handleClose}>
-      <DialogContent
-  sx={{
-    background: 'linear-gradient(135deg, #1f1c2c 0%, #928DAB 100%)',
-    color: 'white',
-    transition: 'all 0.5s ease-in-out',
-    borderRadius: '0.75rem',
-    boxShadow: '0 0 20px rgba(0, 0, 0, 0.3)',
-    backdropFilter: 'blur(8px)',
-  }}
->
-  <Auto_email />
-</DialogContent>
-
-<DialogActions
-  sx={{
-    background: 'linear-gradient(135deg, #1f1c2c 0%, #928DAB 100%)',
-    borderBottomLeftRadius: '0.75rem',
-    borderBottomRightRadius: '0.75rem',
-    transition: 'background 0.5s ease',
-  }}
->
-  <Button
-    onClick={handleClose}
-    color="secondary"
-    variant="outlined"
-    sx={{
-      color: 'white',
-      borderColor: 'white',
-      '&:hover': {
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        borderColor: '#fff',
-      },
-      transition: 'all 0.3s ease-in-out',
-    }}
-  >
-    Cancel
-  </Button>
-</DialogActions>
-
+      {/* AI Draft Assistant Modal */}
+      <Dialog
+        open={hook.openAi}
+        onClose={handleClose}
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            p: 1,
+            backgroundColor: '#ffffff',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.15)',
+            border: '1px solid #e2e8f0',
+            maxWidth: '600px',
+            width: '95%'
+          }
+        }}
+      >
+        <DialogContent sx={{ p: 2 }}>
+          <Auto_email />
+        </DialogContent>
       </Dialog>
     </DialogContainer>
   );

@@ -31,8 +31,9 @@ export const summarizeEmail = async (req, res) => {
     }
 
     try {
-        const { gmail, user } = await getAuthenticatedClient({ accessToken });
-        const userId = user?.id;
+        const queryUserId = req.query.user_id;
+        const { gmail, user } = await getAuthenticatedClient({ accessToken, userId: queryUserId });
+        const userId = user?.id || (queryUserId ? parseInt(queryUserId) : null);
 
         // 2. Check if a rich summary is already cached in PostgreSQL
         if (userId) {

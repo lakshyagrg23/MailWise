@@ -26,7 +26,7 @@ export const getEmailById = async (req, res) => {
     }
 
     try {
-        const { gmail } = await getAuthenticatedClient({ accessToken });
+        const { gmail } = await getAuthenticatedClient({ accessToken, userId: req.query.user_id });
         const msg = await gmail.users.messages.get({ userId: "me", id: emailId });
 
         if (!msg.data) {

@@ -130,18 +130,13 @@ const StyledSelect = styled(Select)`
     }
 `;
 
-const getQueryParam = (param) => {
-    const urlParams = new URLSearchParams(window.location.search);
-    return urlParams.get(param);
-};
-
 const Header = ({ toggleDrawer }) => {
     const emailhook = useContext(emailContext);
     const [searchQuery, setSearchQuery] = useState("");
     const [showSearchResults, setShowSearchResults] = useState(false);
     const [cat, setCat] = useState("All");
     const searchContainerRef = useRef(null);
-    const userId = getQueryParam("user_id");
+    const userId = emailhook.selectedUser || localStorage.getItem("mailwise_user_id");
 
     useEffect(() => {
         const handleClickOutside = (event) => {
