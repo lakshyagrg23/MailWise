@@ -46,12 +46,16 @@ const ViewEmails = () => {
         setLoading(true);
         try {
           const urlParams = new URLSearchParams(window.location.search);
-          const token = accessToken || urlParams.get('access_token') || localStorage.getItem('access_token');
+          const token = accessToken || urlParams.get("access_token") || localStorage.getItem("mailwise_token") || localStorage.getItem("access_token");
+          const userId = localStorage.getItem("mailwise_user_id");
 
           const response = await axios.get(`${API_URL}/fetch-email/${email.email_id}`, {
             headers: {
               Authorization: `Bearer ${token}`,
             },
+            params: {
+              user_id: userId
+            }
           });
           if (response.data?.email) {
             setEmailBody(response.data.email.body);
@@ -74,10 +78,14 @@ const ViewEmails = () => {
     setLoadingSummary(true);
     try {
       const urlParams = new URLSearchParams(window.location.search);
-      const token = accessToken || urlParams.get('access_token') || localStorage.getItem('access_token');
+      const token = accessToken || urlParams.get('access_token') || localStorage.getItem('mailwise_token') || localStorage.getItem('access_token');
+      const userId = localStorage.getItem('mailwise_user_id');
 
       const res = await axios.get(`${API_URL}/email/summarize/${email.email_id}`, {
-        params: { access_token: token }
+        params: { 
+          access_token: token,
+          user_id: userId
+        }
       });
       if (res.data?.summary) {
         setSummary(res.data.summary);
@@ -88,6 +96,12 @@ const ViewEmails = () => {
       setLoadingSummary(false);
     }
   };
+
+  useEffect(() => {
+    if (email?.email_id && (!summary || (!summary.includes('•') && summary.length < 160))) {
+      handleGenerateSummary();
+    }
+  }, [email?.email_id]);
 
   const deleteEmail = () => {
     if (!email?.email_id && !email?._id) return;

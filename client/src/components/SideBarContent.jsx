@@ -21,11 +21,6 @@ import { motion } from "framer-motion";
 import { Refresh } from "./Refresh";
 import axios from "axios";
 
-const getQueryParam = (param) => {
-  const urlParams = new URLSearchParams(window.location.search);
-  return urlParams.get(param);
-};
-
 const SYSTEM_CATEGORIES = ["Promotions", "Social", "Spam"];
 
 const SideBarContent = () => {

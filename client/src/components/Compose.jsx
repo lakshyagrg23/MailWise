@@ -80,10 +80,13 @@ const Compose = ({ openDialog, setOpenDialog }) => {
     e.preventDefault();
     try {
       const urlParams = new URLSearchParams(window.location.search);
-      const token = hook.accessToken || urlParams.get('access_token') || localStorage.getItem('access_token');
+      const token = hook.accessToken || urlParams.get('access_token') || localStorage.getItem('mailwise_token') || localStorage.getItem('access_token');
+      const userId = hook.selectedUser || localStorage.getItem('mailwise_user_id');
 
       const response = await axios.post(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/email/send-emails`, {
-        params: { access_token: token },
+        params: { access_token: token, user_id: userId },
+        access_token: token,
+        user_id: userId,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(hook.data),
       });

@@ -26,8 +26,14 @@ export const createOAuth2Client = () => {
  * @returns {Promise<{ authClient: any, gmail: any, user: any, accessToken: string, isDemo: boolean }>}
  */
 export const getAuthenticatedClient = async ({ accessToken, userId, googleId } = {}) => {
+    // Sanitize string "null" or "undefined"
+    let cleanAccessToken = accessToken;
+    if (cleanAccessToken === 'undefined' || cleanAccessToken === 'null') {
+        cleanAccessToken = null;
+    }
+
     // 1. Handle demo mode
-    if (accessToken === 'demo') {
+    if (cleanAccessToken === 'demo') {
         return { isDemo: true, accessToken: 'demo' };
     }
 
@@ -39,12 +45,12 @@ export const getAuthenticatedClient = async ({ accessToken, userId, googleId } =
         user = await prisma.user.findUnique({ where: { id: parseInt(userId) } });
     } else if (googleId) {
         user = await prisma.user.findUnique({ where: { google_id: googleId } });
-    } else if (accessToken) {
-        user = await prisma.user.findFirst({ where: { access_token: accessToken } });
+    } else if (cleanAccessToken) {
+        user = await prisma.user.findFirst({ where: { access_token: cleanAccessToken } });
     }
 
-    // 3. Determine active token and refresh token
-    let currentToken = accessToken || user?.access_token;
+    // 3. Determine active token and refresh token (prefer latest DB token if user resolved)
+    let currentToken = user?.access_token || cleanAccessToken;
     const refreshToken = user?.refresh_token;
     const tokenExpiry = user?.token_expiry ? new Date(user.token_expiry).getTime() : 0;
     // Check if token has expired or is expiring within the next 5 minutes

@@ -131,10 +131,14 @@ const DisplayEmail = ({ email }) => {
     setLoadingSummary(true);
     try {
       const urlParams = new URLSearchParams(window.location.search);
-      const token = urlParams.get('access_token') || localStorage.getItem('access_token');
+      const token = urlParams.get('access_token') || localStorage.getItem('mailwise_token') || localStorage.getItem('access_token');
+      const userId = localStorage.getItem('mailwise_user_id');
 
       const response = await axios.get(`${API_URL}/email/summarize/${email.email_id}`, {
-        params: { access_token: token }
+        params: { 
+          access_token: token,
+          user_id: userId
+        }
       });
 
       if (response.data?.summary) {
