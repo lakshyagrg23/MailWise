@@ -67,7 +67,7 @@ jobs:
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
             # Navigate to the directory where docker-compose.yml is located on your EC2 instance
-            cd /home/${{ secrets.EC2_USERNAME }}/mailwise
+            cd /home/${{ secrets.EC2_USERNAME }}/MailWise
             
             # Pull the latest changes for docker-compose.yml and other config files
             git pull origin main
