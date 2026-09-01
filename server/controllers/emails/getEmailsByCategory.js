@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 import prisma from '../../prisma.js';
 import { getAuthenticatedClient } from '../../services/googleAuthService.js';
 import { filterUnprocessedEmailIds, fetchRawEmailsConcurrently } from '../../services/gmailFetchService.js';
-import { createTokenBatches, classifyAllBatchesConcurrently } from '../../services/batchClassificationService.js';
+import { processAndClassifyEmails } from '../../services/batchClassificationService.js';
 
 dotenv.config();
 
@@ -62,14 +62,18 @@ export const getEmailsByCategory = async (req, res) => {
         }
         const userId = user.id;
 
-        // 3. List Latest Message IDs from Gmail
-        const listResponse = await gmail.users.messages.list({ userId: 'me', maxResults: 20 });
+        // 3. List Latest Message IDs from Gmail (Excluding Trash and Drafts)
+        const listResponse = await gmail.users.messages.list({
+            userId: 'me',
+            maxResults: 20,
+            q: '-in:trash -in:draft'
+        });
         const messageIds = (listResponse.data.messages || []).map(m => m.id);
 
         // 4. Delta Filtering: Identify only brand-new, unprocessed emails
         const newIds = await filterUnprocessedEmailIds(messageIds, userId);
 
-        // 5. Process New Emails via Token-Aware Batches (if any)
+        // 5. Process New Emails via Fast-Path & Token-Aware Batches
         if (newIds.length > 0) {
             console.log(`[getEmailsByCategory] Processing ${newIds.length} new incoming emails for user ${userId}...`);
 
@@ -83,11 +87,8 @@ export const getEmailsByCategory = async (req, res) => {
             const rawEmails = await fetchRawEmailsConcurrently(newIds, gmail, 10);
 
             if (rawEmails.length > 0) {
-                // Build token-aware batches (~8,000 tokens each)
-                const batches = createTokenBatches(rawEmails, 8000);
-
-                // Classify batches concurrently (max 2 Gemini requests in parallel)
-                const classifiedEmails = await classifyAllBatchesConcurrently(batches, categories, 2);
+                // Route zero-cost labels (Spam/Promos/Social) and classify Primary/Updates with Gemini
+                const classifiedEmails = await processAndClassifyEmails(rawEmails, categories, 2);
 
                 // Bulk insert all classified emails into PostgreSQL
                 const recordsToInsert = classifiedEmails.map(record => ({

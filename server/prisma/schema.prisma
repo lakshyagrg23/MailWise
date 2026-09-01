@@ -27,7 +27,7 @@ model User {
 model EmailMetadata {
   id            Int       @id @default(autoincrement())
   user_id       Int?
-  email_id      String    @unique
+  email_id      String
   subject       String
   sender        String
   category      String
@@ -38,6 +38,7 @@ model EmailMetadata {
 
   user          User?     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
+  @@unique([user_id, email_id])
   @@map("email_metadata")
 }
 

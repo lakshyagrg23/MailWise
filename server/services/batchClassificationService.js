@@ -9,7 +9,22 @@ const GEMINI_MODEL = 'gemini-2.5-flash';
 const MAX_BATCH_TOKENS = 8000;
 
 /**
- * Estimates the token count of an email object using a standard character heuristic (~4 chars/token).
+ * Generates a clean single-line snippet from the email body.
+ *
+ * @param {string} body
+ * @param {number} [maxChars=140]
+ * @returns {string}
+ */
+export function generateBodySnippet(body, maxChars = 140) {
+    if (!body || body.trim().length === 0) {
+        return "No preview available.";
+    }
+    const clean = body.replace(/\s+/g, ' ').trim();
+    return clean.length > maxChars ? clean.slice(0, maxChars) + '...' : clean;
+}
+
+/**
+ * Estimates the token count of an email object (~4 chars/token).
  *
  * @param {Object} email
  * @returns {number}
@@ -18,7 +33,62 @@ export function estimateEmailTokens(email) {
     const subjectLength = (email.subject || '').length;
     const senderLength = (email.sender || '').length;
     const bodyLength = (email.body || '').length;
-    return Math.ceil((subjectLength + senderLength + bodyLength + 120) / 4);
+    return Math.ceil((subjectLength + senderLength + bodyLength + 100) / 4);
+}
+
+/**
+ * Pre-sorts emails by Gmail System Labels (SPAM, Promotions, Social)
+ * to bypass Gemini entirely for zero token cost and instant routing.
+ *
+ * @param {Array} emails - Array of raw email objects with labelIds
+ * @returns {{ directBucketEmails: Array, aiTargetEmails: Array }}
+ */
+export function splitSystemAndAiEmails(emails) {
+    const directBucketEmails = [];
+    const aiTargetEmails = [];
+
+    for (const email of emails) {
+        const labels = email.labelIds || [];
+        if (labels.includes('SPAM')) {
+            directBucketEmails.push({
+                email_id: email.email_id,
+                subject: email.subject || "No Subject",
+                sender: email.sender || "Unknown Sender",
+                category: "Spam",
+                emailsummary: generateBodySnippet(email.body),
+                attachname: email.attachName || null,
+                received_date: email.receivedAt ? new Date(email.receivedAt) : new Date(),
+                update: 1n
+            });
+        } else if (labels.includes('CATEGORY_PROMOTIONS')) {
+            directBucketEmails.push({
+                email_id: email.email_id,
+                subject: email.subject || "No Subject",
+                sender: email.sender || "Unknown Sender",
+                category: "Promotions",
+                emailsummary: generateBodySnippet(email.body),
+                attachname: email.attachName || null,
+                received_date: email.receivedAt ? new Date(email.receivedAt) : new Date(),
+                update: 1n
+            });
+        } else if (labels.includes('CATEGORY_SOCIAL')) {
+            directBucketEmails.push({
+                email_id: email.email_id,
+                subject: email.subject || "No Subject",
+                sender: email.sender || "Unknown Sender",
+                category: "Social",
+                emailsummary: generateBodySnippet(email.body),
+                attachname: email.attachName || null,
+                received_date: email.receivedAt ? new Date(email.receivedAt) : new Date(),
+                update: 1n
+            });
+        } else {
+            // Primary inbox, Updates, and unlabelled mail go to Gemini for smart classification
+            aiTargetEmails.push(email);
+        }
+    }
+
+    return { directBucketEmails, aiTargetEmails };
 }
 
 /**
@@ -40,7 +110,6 @@ export function createTokenBatches(emails, maxTokens = MAX_BATCH_TOKENS) {
     for (const email of emails) {
         const emailTokens = estimateEmailTokens(email);
 
-        // If adding this email exceeds the budget, close the current batch and start a new one
         if (currentBatch.length > 0 && (currentTokens + emailTokens > maxTokens)) {
             batches.push(currentBatch);
             currentBatch = [];
@@ -59,7 +128,7 @@ export function createTokenBatches(emails, maxTokens = MAX_BATCH_TOKENS) {
 }
 
 /**
- * Builds a structured, delimited batch prompt containing all emails in the batch and user categories.
+ * Builds a fast, category-only batch prompt requesting ONLY email_id and category.
  *
  * @param {Array} emails - Batch of emails
  * @param {Array} categories - Array of category preference objects
@@ -79,36 +148,28 @@ ${email.body || "No email body available."}
 </email>`).join("\n");
 
     return `
-You are an expert email assistant. Your task is to process the following batch of emails.
+You are an expert email classification assistant. Your task is to quickly classify the following emails into the Available Categories.
 
 Available Categories:
 ${categoryList}
 
 Instructions:
-1. For each email provided below inside <email id="...">...</email>, classify it into exactly one of the Available Categories.
-2. Generate a concise, professional summary (30-40 words) highlighting the purpose and key details.
-3. Use the exact email id provided in each <email> tag.
-
-Emails to process:
-${formattedEmails}
-
-Return STRICTLY a JSON array matching the following schema with no extra commentary:
+1. For each email provided below inside <email id="...">...</email>, assign it to the single best matching Category from the Available Categories list.
+2. Return STRICTLY a JSON array of objects with the exact schema:
 [
   {
     "email_id": "<EXACT_EMAIL_ID>",
-    "category": "<CATEGORY_NAME>",
-    "summary": "<30-40 word concise summary>"
+    "category": "<CATEGORY_NAME>"
   }
 ]
+
+Emails to process:
+${formattedEmails}
 `.trim();
 }
 
 /**
  * Resolves a safe default category for fallbacks when AI fails or omits an email.
- * Priority:
- * 1. An existing category named "Miscellaneous", "Other", or "General" (case-insensitive).
- * 2. The user's first available category.
- * 3. Final fallback: "Miscellaneous".
  *
  * @param {Array} categories - User category preferences
  * @returns {string} Safe default category name
@@ -137,9 +198,7 @@ export function createFallbackEmailRecord(email, defaultCategory) {
         subject: email.subject || "No Subject",
         sender: email.sender || "Unknown Sender",
         category: defaultCategory,
-        emailsummary: email.body
-            ? email.body.slice(0, 150).replace(/\s+/g, ' ') + '...'
-            : "No summary available.",
+        emailsummary: generateBodySnippet(email.body),
         attachname: email.attachName || null,
         received_date: email.receivedAt ? new Date(email.receivedAt) : new Date(),
         update: 1n
@@ -147,8 +206,7 @@ export function createFallbackEmailRecord(email, defaultCategory) {
 }
 
 /**
- * Classifies a single batch of emails using Gemini 2.5 Flash and reconciles output back to input emails.
- * Guarantees zero dropped emails by falling back safely if an ID is omitted.
+ * Classifies a single batch of emails with Gemini (Category-only, ultra-fast).
  *
  * @param {Array} batch - Batch of email objects
  * @param {Array} categories - User categories
@@ -159,14 +217,12 @@ export async function classifySingleBatch(batch, categories) {
         return [];
     }
 
-    // Build category lookup map (case-insensitive)
     const validCategoryMap = new Map();
     (categories || []).forEach(cat => {
         validCategoryMap.set(cat.category_name.toLowerCase().trim(), cat.category_name);
     });
 
     const defaultCategory = resolveDefaultCategory(categories);
-
     const prompt = buildBatchPrompt(batch, categories);
     const resultsMap = new Map();
 
@@ -182,7 +238,6 @@ export async function classifySingleBatch(batch, categories) {
         const response = await result.response;
         const text = response.text().trim();
 
-        // Strip any markdown code fence wrappers if present
         const cleanedJson = text.replace(/^```json/i, '').replace(/```$/i, '').trim();
         const parsedArray = JSON.parse(cleanedJson);
 
@@ -197,7 +252,6 @@ export async function classifySingleBatch(batch, categories) {
         console.error("[batchClassificationService] Gemini batch classification failed, falling back safely:", err.message);
     }
 
-    // Reconcile output 1:1 with input batch to ensure zero lost emails
     return batch.map(email => {
         const aiResult = resultsMap.get(email.email_id);
         let category = defaultCategory;
@@ -209,16 +263,12 @@ export async function classifySingleBatch(batch, categories) {
             }
         }
 
-        const summary = aiResult?.summary && aiResult.summary.trim().length > 0
-            ? aiResult.summary.trim()
-            : (email.body ? email.body.slice(0, 150).replace(/\s+/g, ' ') + '...' : "No summary available.");
-
         return {
             email_id: email.email_id,
             subject: email.subject || "No Subject",
             sender: email.sender || "Unknown Sender",
             category: category,
-            emailsummary: summary,
+            emailsummary: generateBodySnippet(email.body),
             attachname: email.attachName || null,
             received_date: email.receivedAt ? new Date(email.receivedAt) : new Date(),
             update: 1n
@@ -241,10 +291,7 @@ export async function classifyAllBatchesConcurrently(batches, categories, concur
 
     const defaultCategory = resolveDefaultCategory(categories);
 
-    console.log(`[batchClassificationService] Classifying ${batches.length} batches with Gemini concurrency limit ${concurrency}...`);
-
     const settledResults = await asyncPool(concurrency, batches, async (batch, batchIndex) => {
-        console.log(`[batchClassificationService] Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} emails)...`);
         return classifySingleBatch(batch, categories);
     });
 
@@ -254,12 +301,37 @@ export async function classifyAllBatchesConcurrently(batches, categories, concur
             classifiedEmails.push(...result.value);
         } else {
             console.error(`[batchClassificationService] Batch ${idx + 1} completely failed:`, result.reason);
-            // Fallback for the failed batch using the shared category resolution
             const fallbackBatch = batches[idx].map(email => createFallbackEmailRecord(email, defaultCategory));
             classifiedEmails.push(...fallbackBatch);
         }
     });
 
-    console.log(`[batchClassificationService] Successfully classified ${classifiedEmails.length} total emails across ${batches.length} batches.`);
     return classifiedEmails;
+}
+
+/**
+ * Top-level processor: Separates zero-cost system buckets (Spam/Promotions/Social)
+ * and classifies remaining Primary/Updates emails with Gemini.
+ *
+ * @param {Array} rawEmails - Array of raw emails from Gmail
+ * @param {Array} categories - User categories
+ * @param {number} [concurrency=2] - Gemini concurrency limit
+ * @returns {Promise<Array>} Full list of classified emails
+ */
+export async function processAndClassifyEmails(rawEmails, categories, concurrency = 2) {
+    if (!Array.isArray(rawEmails) || rawEmails.length === 0) {
+        return [];
+    }
+
+    // 1. Fast-path routing based on Gmail System Labels
+    const { directBucketEmails, aiTargetEmails } = splitSystemAndAiEmails(rawEmails);
+    console.log(`[batchClassificationService] Fast-path System Emails (0 AI Tokens): ${directBucketEmails.length} | AI Classification Targets: ${aiTargetEmails.length}`);
+
+    let classifiedAiEmails = [];
+    if (aiTargetEmails.length > 0) {
+        const batches = createTokenBatches(aiTargetEmails, MAX_BATCH_TOKENS);
+        classifiedAiEmails = await classifyAllBatchesConcurrently(batches, categories, concurrency);
+    }
+
+    return [...directBucketEmails, ...classifiedAiEmails];
 }

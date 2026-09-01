@@ -98,6 +98,7 @@ export async function fetchRawEmailsConcurrently(messageIds, gmailClient, concur
             }
 
             const attachName = findAttachmentName(msg.data.payload);
+            const labelIds = msg.data.labelIds || [];
             const receivedAt = msg.data.internalDate
                 ? new Date(parseInt(msg.data.internalDate)).toISOString()
                 : new Date().toISOString();
@@ -108,6 +109,7 @@ export async function fetchRawEmailsConcurrently(messageIds, gmailClient, concur
                 sender,
                 body: rawBody,
                 attachName,
+                labelIds,
                 receivedAt
             };
         } catch (msgErr) {
