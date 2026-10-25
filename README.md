@@ -147,12 +147,3 @@ Pushing to `main` runs `.github/workflows/deploy.yml`, which:
 2. SSHes into the EC2 host, pulls the repo, writes `.env` from GitHub secrets, and runs `docker compose pull && docker compose up -d`.
 
 Required secrets: `EC2_HOST`, `EC2_USERNAME`, `EC2_SSH_KEY`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `GEMINI_API_KEY`, `FRONTEND_URL`. The production compose file expects an existing external Docker network named `shared-network`.
-
-The server container runs `prisma db push --accept-data-loss` on startup, so review schema changes before deploying. Adding a new environment variable means updating both `docker-compose.yml` and the `.env` generation step in `deploy.yml`.
-
-## Known limitations
-
-- Only the 30 most recent messages are considered per sync, and sync happens when the client requests it. The push-notification path is not finished.
-- Renaming or deleting a category does not reclassify or update existing emails.
-- Access tokens travel in URLs and query strings, and user-scoped routes do not verify that the caller owns the `user_id`. Treat this as a prototype before exposing it to untrusted users.
-- No automated tests.
