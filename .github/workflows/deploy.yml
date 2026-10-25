@@ -20,7 +20,7 @@ jobs:
     
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/checkout@v4
 
       # Lowercase the repository owner string to avoid docker push errors
       - name: Set lower case owner name
@@ -30,7 +30,7 @@ jobs:
           OWNER: '${{ github.repository_owner }}'
 
       - name: Log in to the Container registry
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -38,7 +38,7 @@ jobs:
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
-        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
+        uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.OWNER_LC }}/mailwise-backend
           tags: |
@@ -46,7 +46,7 @@ jobs:
             type=sha
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5.4.0
+        uses: docker/build-push-action@v5
         with:
           context: ./server
           push: true
@@ -56,84 +56,34 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: build-and-push
-    permissions:
-      contents: read
     steps:
       - name: Deploy to EC2
-        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
-        # Secrets are handed to the step as environment variables and forwarded to the
-        # remote shell via `envs`. They are NOT interpolated into the script text below.
-        env:
-          DB_USER: ${{ secrets.DB_USER }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          DB_NAME: ${{ secrets.DB_NAME }}
-          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-          GOOGLE_REDIRECT_URI: ${{ secrets.GOOGLE_REDIRECT_URI }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
-          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
-          PUBSUB_AUDIENCE: ${{ secrets.PUBSUB_AUDIENCE }}
-          PUBSUB_SERVICE_ACCOUNT_EMAIL: ${{ secrets.PUBSUB_SERVICE_ACCOUNT_EMAIL }}
-          GOOGLE_PUBSUB_TOPIC: ${{ secrets.GOOGLE_PUBSUB_TOPIC }}
-          # Dedicated read:packages-only credential for the host (not GITHUB_TOKEN).
-          GHCR_PULL_USER: ${{ secrets.GHCR_PULL_USER }}
-          GHCR_PULL_TOKEN: ${{ secrets.GHCR_PULL_TOKEN }}
-          # Name of the running Postgres container on the host (repo variable, optional).
-          PG_CONTAINER: ${{ vars.PG_CONTAINER || 'postgres' }}
+        uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          script_stop: true
-          envs: DB_USER,DB_PASSWORD,DB_NAME,GOOGLE_CLIENT_ID,GOOGLE_CLIENT_SECRET,GOOGLE_REDIRECT_URI,GEMINI_API_KEY,FRONTEND_URL,SESSION_SECRET,PUBSUB_AUDIENCE,PUBSUB_SERVICE_ACCOUNT_EMAIL,GOOGLE_PUBSUB_TOPIC,GHCR_PULL_USER,GHCR_PULL_TOKEN,PG_CONTAINER
           script: |
-            set -eu
-
-            # The backend refuses to start without a session secret (>= 16 chars). Abort here,
-            # before touching .env or pulling the new image, so a missing GitHub secret cannot
-            # replace the running version with a crash-looping container.
-            if [ "${#SESSION_SECRET}" -lt 16 ]; then
-              echo "SESSION_SECRET repo secret is missing or shorter than 16 characters; aborting deploy." >&2
-              exit 1
-            fi
-
-            # Log in to GHCR with the dedicated pull token (read from stdin, never on argv).
-            printf '%s' "$GHCR_PULL_TOKEN" | docker login ghcr.io -u "$GHCR_PULL_USER" --password-stdin
-
-            # Navigate to the directory where docker-compose.yml is located on the EC2 instance
-            cd "$HOME/MailWise"
-
-            # Pull the latest compose/config files
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
+            # Navigate to the directory where docker-compose.yml is located on your EC2 instance
+            cd /home/${{ secrets.EC2_USERNAME }}/MailWise
+            
+            # Pull the latest changes for docker-compose.yml and other config files
             git pull origin main
-
-            # Generate the .env file from the forwarded environment (owner-only permissions).
-            # printf '%s' writes values verbatim; nothing is re-evaluated by the shell.
-            # DATABASE_URL is built by docker-compose.yml from DB_USER/DB_PASSWORD/DB_NAME.
-            umask 077
-            {
-              for v in DB_USER DB_PASSWORD DB_NAME GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET \
-                       GOOGLE_REDIRECT_URI GEMINI_API_KEY FRONTEND_URL SESSION_SECRET \
-                       PUBSUB_AUDIENCE PUBSUB_SERVICE_ACCOUNT_EMAIL GOOGLE_PUBSUB_TOPIC; do
-                printf '%s=%s\n' "$v" "$(printenv "$v")"
-              done
-              printf 'NODE_ENV=production\n'
-            } > .env
-
-            # ---- Pre-deploy database backup (runs BEFORE the new image is pulled) ----
-            # Dumps the database from the running Postgres container to a timestamped,
-            # owner-only file on the host and keeps only the newest KEEP dumps. If the dump
-            # fails, set -e aborts the deploy so the old version keeps running untouched.
-            # Note: backups live on the same host; copy them off-box (e.g. S3) for real DR.
-            KEEP=7
-            BACKUP_DIR="$HOME/mailwise-backups"
-            mkdir -p "$BACKUP_DIR"
-            BACKUP_FILE="$BACKUP_DIR/mailwise_$(date -u +%Y%m%dT%H%M%SZ).sql"
-            docker exec "$PG_CONTAINER" pg_dump -U "$DB_USER" "$DB_NAME" > "$BACKUP_FILE"
-            test -s "$BACKUP_FILE"   # refuse to continue on an empty dump
-            gzip -f "$BACKUP_FILE"
-            ls -1t "$BACKUP_DIR"/mailwise_*.sql.gz | tail -n +$((KEEP + 1)) | xargs -r rm -f --
-
+            
+            # Dynamically generate the .env file from GitHub Secrets for self-contained deployment
+            echo "DB_USER=${{ secrets.DB_USER }}" > .env
+            echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
+            echo "DB_NAME=${{ secrets.DB_NAME }}" >> .env
+            echo "DATABASE_URL=postgresql://${{ secrets.DB_USER }}:${{ secrets.DB_PASSWORD }}@postgres:5432/${{ secrets.DB_NAME }}?schema=public" >> .env
+            echo "GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}" >> .env
+            echo "GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}" >> .env
+            echo "GOOGLE_REDIRECT_URI=${{ secrets.GOOGLE_REDIRECT_URI }}" >> .env
+            echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
+            echo "FRONTEND_URL=${{ secrets.FRONTEND_URL }}" >> .env
+            echo "SESSION_SECRET=${{ secrets.SESSION_SECRET }}" >> .env
+            
             # Pull the new images and start the containers
             docker compose pull
             docker compose up -d --remove-orphans
