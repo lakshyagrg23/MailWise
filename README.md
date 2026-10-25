@@ -1,157 +1,158 @@
-# MailWise: AI-Powered Email Management System
+# MailWise
 
-Managing an inbox can be overwhelming, with important emails often getting buried under less
-relevant ones. MailWise helps users easily find critical emails by categorizing them intelligently.
-Unlike basic spam filtering, it ensures that essential emails—whether urgent or potentially useful
-later—are easy to locate. Additionally, users can personalize and specify categorization rules based
-on what is important to them and the type of emails they receive, making the system highly
-adaptable to individual needs.
+AI-powered Gmail management. MailWise connects to your Gmail account via Google OAuth, sorts incoming mail into categories **you define** using Google Gemini, summarizes emails on demand, and helps you draft and send new ones.
 
-<br>
-<br>
-
-MailWise is a complete email management platform designed to make accessing and organizing emails easier and more efficient. By using the **Gmail API**, MailWise securely fetches emails from the user's Gmail account after authentication via **Google OAuth**. It then categorizes these emails into major predefined categories such as Essential, Finance, and Updates, while also allowing users to create **personalized categories** for their specific needs, with **AI** handling segregation of received emails according to the personalization provided by the user.
-
-In addition to organizing emails, MailWise enhances the **email composition** experience by providing **AI-assisted email writing**, making sending emails faster and more efficient. The system **optimizes** the **entire email workflow**, ensuring that users can easily manage and interact with their inbox.
-
-<br>
-
-<img width="3197" height="1721" alt="image" src="https://github.com/user-attachments/assets/24b59d5a-ed5a-469c-a876-e209d9a855d6" />
-
-<br>
+![Screenshot](<Screenshot 2026-10-25 202354.png>)
 
 ## Features
-📩 Email Viewing & Organization:
 
-- AI-powered categorization using Google Gemini AI.
-- User-defined categories – Users can create, modify, and delete categories based on their preferences.
-- Email summaries on hover – Users can preview emails without opening them.
+- **AI categorization** – new mail is classified by Gemini against your own category names and descriptions. Gmail's own Spam / Promotions / Social labels are routed directly, skipping the AI to save tokens.
+- **Custom categories** – create, edit and delete categories; seven defaults are seeded on first sign-in (Essential, Social, Promotions, Updates, Finance, Subscriptions, Miscellaneous).
+- **On-demand summaries** – structured bullet summary plus an "Action Item" line, cached in the database after the first request. Hover previews show it in the list.
+- **AI-assisted composition** – generate a subject and body from a short description (formal or informal), then send through the Gmail API.
+- **Search and full-message view** – read the full body and download attachments, fetched live from Gmail.
+- **Demo account** – try the app with seeded data and no Google sign-in.
+- **Gmail push notifications (in progress)** – watch registration and a Pub/Sub webhook endpoint exist; processing of pushed history is not implemented yet.
 
-✍️ Email Composition & Sending:
+## Tech stack
 
-- Email sending functionality – Users can compose and send emails directly from MailWise.
-- AI-assisted email writing – Helps users draft better emails efficiently.
----
+| Layer | Technology |
+|---|---|
+| Frontend | React 19, Vite 6, React Router 7, MUI 7, Tailwind CSS 4, framer-motion, axios |
+| Backend | Node 22, Express 4, `googleapis`, `@google/generative-ai` (`gemini-2.5-flash`) |
+| Database | PostgreSQL with Prisma 5.21 |
+| Infrastructure | Docker, GitHub Actions → GitHub Container Registry → EC2 (docker compose); frontend on AWS Amplify |
 
-## Project Structure
+## Architecture
 
 ```
-├──client
-├── build
-├── node_modules
-├── public
-├── src
-├── package-lock.json
-├── package.json
-└── README.md
-
-server
-├── attachments
-├── controllers
-│ ├── auth
-│ ├── categories
-│ ├── emails
-│ └── fetch-emails
-├── helpFunctions
-├── node_modules
-├── routes
-├── .env
-├── db.js
-├── hj.js
-├── server.js
-├── package-lock.json
-├── package.json
-└── .gitignore
+client (React SPA)  ──HTTP──▶  server (Express)  ──▶  Gmail API (read / send / watch)
+                                     │            ──▶  Gemini API (classify / summarize / draft)
+                                     └──▶  PostgreSQL (users, email metadata, categories)
 ```
 
----
+Only email **metadata** is stored (subject, sender, category, snippet or summary, date, attachment name). Bodies and attachments are fetched from Gmail when you open a message.
 
-## 🛠️ Installation & Setup
+**Ingestion pipeline** (runs when the client requests `GET /fetch-emails/:category`):
+
+1. List the 30 most recent Gmail message IDs, excluding trash and drafts.
+2. Drop IDs already stored for the user.
+3. Fetch the new messages (10 concurrent), then clean the bodies: strip HTML, quoted replies, signatures and footers, and truncate to 1200 characters.
+4. Route SPAM, Promotions and Social labels directly; send the rest to Gemini in token-budgeted batches (2 concurrent), requesting only `{email_id, category}`.
+5. Validate the returned category against the user's list, falling back to a default on failure, and bulk-insert.
+6. Return the stored emails for the requested category.
+
+Gmail and Gemini calls use exponential backoff with jitter for 429, 5xx and network errors.
+
+### Authentication
+
+Google OAuth 2.0 with offline access (`gmail.readonly`, `gmail.send`, user profile). Tokens are stored in Postgres and refreshed automatically when within 5 minutes of expiry. After sign-in the server redirects to the frontend with the token and user ID, which the client keeps in `localStorage` and sends on each request. There are no server-side sessions.
+
+## Project structure
+
+```
+client/                 React SPA (Vite)
+  src/App.jsx           auth bootstrap, shared context, router
+  src/pages/Main.jsx    layout: header, sidebar, content outlet
+  src/components/       email list, detail view, compose, category management
+server/
+  server.js             Express app and route mounting
+  controllers/          auth, categories, emails, webhook
+  services/             Gmail auth, fetching, classification, watch registration
+  utils/                email cleaning, retry, concurrency pool
+  prisma/schema.prisma  User, EmailMetadata, CategoryPreference
+docker-compose.yml          production backend (external network, GHCR image)
+docker-compose.local.yml    local Postgres + backend + frontend
+.github/workflows/          build, publish and deploy on push to main
+```
+
+## API overview
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/auth/url` | Google consent URL |
+| GET | `/auth/callback` | OAuth callback, creates or updates the user |
+| GET | `/auth/demo` | Reset and sign in to the demo account |
+| GET | `/fetch-emails/:category` | Sync, classify and list emails (`All` for everything) |
+| GET | `/fetch-email/:emailId` | Full body and attachments from Gmail |
+| GET | `/fetch-email/email` | AI-draft an email (`type`, `details`) |
+| GET | `/email/summarize/:emailId` | AI summary (cached) |
+| POST | `/email/send-emails` | Send an email |
+| DELETE | `/email/:userId` | Clear stored emails (the demo account is preserved) |
+| GET, POST | `/categories/:userId` | List / create categories |
+| PUT, DELETE | `/categories/:userId/:categoryName` | Update / delete a category |
+| POST | `/webhook/gmail` | Gmail Pub/Sub push endpoint |
+
+Requests authenticate with `access_token` (query string or `Authorization: Bearer`) and `user_id`. The token `demo` selects demo behavior.
+
+## Getting started
 
 ### Prerequisites
-Ensure you have the following installed:
-- **Node.js** (v18+ recommended)
-- **PostgreSQL**
 
+- Node.js 22 and npm
+- PostgreSQL 15 (or Docker)
+- A Google Cloud project with the Gmail API enabled and an OAuth 2.0 Web client whose redirect URI is `http://localhost:5000/auth/callback`
+- A Gemini API key
 
-### Backend Setup
+### Configuration
+
+Create `server/.env`:
+
+```env
+DATABASE_URL=postgresql://postgres:password@localhost:5432/mailwise?schema=public
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+GOOGLE_REDIRECT_URI=http://localhost:5000/auth/callback
+GEMINI_API_KEY=...
+FRONTEND_URL=http://localhost:3000
+# Optional, enables Gmail push registration:
+# GOOGLE_PUBSUB_TOPIC=projects/<project>/topics/<topic>
+# PORT=5000
+```
+
+Create `client/.env` (optional; this is the default):
+
+```env
+VITE_BACKEND_URL=http://localhost:5000
+```
+
+### Run locally
+
 ```bash
+# Backend
 cd server
 npm install
-```
+npx prisma db push
+npm start            # http://localhost:5000
 
-Configure environment variables:
-   Create a `.env` file in the root directory and add the following:
-   ```sh
-   GOOGLE_CLIENT_ID=
-   GOOGLE_CLIENT_SECRET=
-   GOOGLE_REDIRECT_URI=
-
-   DB_USER=
-   DB_HOST=
-   DB_NAME=
-   DB_PASSWORD=
-   DB_PORT=
-   ```
-
-Start the backend server:
-```bash
-node server.js
-```
-
-### Frontend Setup
-```bash
+# Frontend (new terminal)
 cd client
 npm install
-npm start  
+npm run dev          # http://localhost:3000
 ```
 
-The application should now be running on **http://localhost:3000** (frontend) and **http://localhost:5000** (backend).
+### Run with Docker
 
----
+```bash
+docker compose -f docker-compose.local.yml up --build
+```
 
-## Usage
-1. **Login with Google** – Authenticate using your Gmail account.
-2. **View categorized emails** – Emails are automatically sorted into predefined & custom categories.
-3. **Create custom categories** – Add new categories based on preferences.
-4. **Delete categories** – Remove unwanted categories.
+This starts Postgres, the backend on `:5000` and the frontend on `:80`. The backend reads `server/.env`; the compose file overrides `DATABASE_URL` to point at the database container.
 
----
+## Deployment
 
-## Technologies Used
-- **Frontend**: ReactJS, Tailwind CSS
-- **Backend**: NodeJS, ExpressJS
-- **Database**: PostgreSQL
-- **APIs Used**: Google OAuth, Gmail API, Gemini API 
+Pushing to `main` runs `.github/workflows/deploy.yml`, which:
 
----
+1. Builds `./server` and pushes `ghcr.io/<owner>/mailwise-backend` (`latest` and the commit SHA).
+2. SSHes into the EC2 host, pulls the repo, writes `.env` from GitHub secrets, and runs `docker compose pull && docker compose up -d`.
 
-## API Endpoints
-### **Authentication**
-- `GET /auth/google` – Initiates Google OAuth flow
-- `GET /auth/google/callback` – Handles OAuth callback
+Required secrets: `EC2_HOST`, `EC2_USERNAME`, `EC2_SSH_KEY`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `GEMINI_API_KEY`, `FRONTEND_URL`. The production compose file expects an existing external Docker network named `shared-network`.
 
-### **Emails**
-- `GET /emails/:userId` – Fetches categorized emails
-- `POST /emails/:userId` – Stores email metadata
+The server container runs `prisma db push --accept-data-loss` on startup, so review schema changes before deploying. Adding a new environment variable means updating both `docker-compose.yml` and the `.env` generation step in `deploy.yml`.
 
-### **Categories**
-- `GET /categories/:userId` – Fetches user-defined categories
-- `POST /categories/:userId` – Creates a new category
-- `DELETE /categories/:userId/:categoryName` – Deletes a category
+## Known limitations
 
----
-
-##  Contribution
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature-branch`)
-3. Commit your changes (`git commit -m 'Add new feature'`)
-4. Push to the branch (`git push origin feature-branch`)
-5. Open a pull request
-
----
-
-## License
-This project is licensed under the MIT License.
-
----
+- Only the 30 most recent messages are considered per sync, and sync happens when the client requests it. The push-notification path is not finished.
+- Renaming or deleting a category does not reclassify or update existing emails.
+- Access tokens travel in URLs and query strings, and user-scoped routes do not verify that the caller owns the `user_id`. Treat this as a prototype before exposing it to untrusted users.
+- No automated tests.
