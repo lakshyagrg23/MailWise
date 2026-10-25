@@ -1,5 +1,5 @@
 import React, { useState, useContext } from 'react';
-import axios from 'axios';
+import http from '../api/http';
 import {
   Box,
   Typography,
@@ -26,9 +26,7 @@ const Auto_email = () => {
 
         setLoading(true);
         try {
-            const response = await axios.get(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/fetch-email/email`, {
-                params: { type: type, details: description },
-            });
+            const response = await http.post('/fetch-email/email', { type: type, details: description });
             if (response.data) {
                 setData(prev => ({ ...prev, ...response.data }));
                 setOpenAi(false);

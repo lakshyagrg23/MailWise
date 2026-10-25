@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
-import axios from 'axios';
+import http from '../api/http';
 import {
   Box,
   Typography,
@@ -22,10 +22,8 @@ import { emailContext } from "../App";
 import { getRandomColor } from '../content/getColor';
 import dayjs from 'dayjs';
 
-const API_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
-
 const ViewEmails = () => {
-  const { setEmails, accessToken } = useContext(emailContext);
+  const { setEmails } = useContext(emailContext);
   const { state } = useLocation();
   const { email: initialEmail } = state || {};
   const { openDrawer } = useOutletContext();
@@ -48,18 +46,7 @@ const ViewEmails = () => {
       const fetchEmailData = async () => {
         setLoading(true);
         try {
-          const urlParams = new URLSearchParams(window.location.search);
-          const token = accessToken || urlParams.get("access_token") || localStorage.getItem("mailwise_token") || localStorage.getItem("access_token");
-          const userId = localStorage.getItem("mailwise_user_id");
-
-          const response = await axios.get(`${API_URL}/fetch-email/${email.email_id}`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-            params: {
-              user_id: userId
-            }
-          });
+          const response = await http.get(`/fetch-email/${email.email_id}`);
           if (response.data?.email) {
             setEmailBody(response.data.email.body);
             setAttachments(response.data.email.attachments || []);
@@ -74,22 +61,13 @@ const ViewEmails = () => {
     } else {
       setLoading(false);
     }
-  }, [email, emailBody, accessToken]);
+  }, [email, emailBody]);
 
   const handleGenerateSummary = async () => {
     if (!email?.email_id) return;
     setLoadingSummary(true);
     try {
-      const urlParams = new URLSearchParams(window.location.search);
-      const token = accessToken || urlParams.get('access_token') || localStorage.getItem('mailwise_token') || localStorage.getItem('access_token');
-      const userId = localStorage.getItem('mailwise_user_id');
-
-      const res = await axios.get(`${API_URL}/email/summarize/${email.email_id}`, {
-        params: { 
-          access_token: token,
-          user_id: userId
-        }
-      });
+      const res = await http.get(`/email/summarize/${email.email_id}`);
       if (res.data?.summary) {
         setSummary(res.data.summary);
       }

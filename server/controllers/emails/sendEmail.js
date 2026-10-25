@@ -1,24 +1,15 @@
 import { getAuthenticatedClient } from '../../services/googleAuthService.js';
+import { buildRawMessage } from '../../utils/mimeBuilder.js';
 import dotenv from 'dotenv';
 dotenv.config();
 
 export const sendEmail = async (req, res) => {
-    const accessToken = req.headers.authorization?.split(' ')[1]
-        || req.body?.params?.access_token
-        || req.body?.access_token
-        || req.query?.access_token;
-
-    if (!accessToken) {
-        return res.status(401).json({ error: "Missing access token" });
-    }
-
-    if (accessToken === "demo") {
+    if (req.user.isDemo) {
         return res.status(200).json({ message: 'Email sent successfully', response: "success" });
     }
 
     try {
-        const userId = req.query?.user_id || req.body?.user_id;
-        const { gmail, user } = await getAuthenticatedClient({ accessToken, userId });
+        const { gmail, user } = await getAuthenticatedClient({ userId: req.user.id });
         const senderID = user?.email || 'me';
 
         // Handle both stringified body (legacy frontend Compose.jsx) and standard JSON payload
@@ -41,25 +32,13 @@ export const sendEmail = async (req, res) => {
             body = req.body.body.body !== undefined ? req.body.body.body : body;
         }
 
-        if (!to) {
-            return res.status(400).json({ error: "Recipient ('to') is required" });
+        let base64Email;
+        try {
+            base64Email = buildRawMessage({ from: senderID, to, subject, body, reqBody: req.body });
+        } catch (err) {
+            if (err.isValidation) return res.status(400).json({ error: err.message });
+            throw err;
         }
-
-        const emailLines = [
-            `From: ${senderID}`,
-            `To: ${to}`,
-            'Content-Type: text/html; charset="UTF-8"',
-            'MIME-Version: 1.0',
-            `Subject: =?UTF-8?B?${Buffer.from(subject, 'utf-8').toString('base64')}?=`,
-            '',
-            `${body}`
-        ];
-        const email = emailLines.join('\r\n').trim();
-        const base64Email = Buffer.from(email, 'utf-8')
-            .toString('base64')
-            .replace(/\+/g, '-')
-            .replace(/\//g, '_')
-            .replace(/=+$/, '');
 
         await gmail.users.messages.send({
             userId: 'me',
@@ -71,7 +50,7 @@ export const sendEmail = async (req, res) => {
         return res.status(200).json({ message: 'Email sent successfully', response: "success" });
     } catch (error) {
         console.error('Error sending email:', error);
-        return res.status(500).json({ error: 'Failed to send email', details: error.message });
+        return res.status(500).json({ error: 'Failed to send email' });
     }
 };
 

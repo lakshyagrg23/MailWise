@@ -1,29 +1,23 @@
 import prisma from '../../prisma.js';
 
 export const updateCategory = async (req, res) => {
-    const { userId, categoryName } = req.params;
+    const { categoryName } = req.params;
     const { newCategoryName, newDescription } = req.body || {};
-
-    if (!userId || isNaN(parseInt(userId))) {
-        return res.status(400).json({ error: "A valid userId is required" });
-    }
 
     if (!newCategoryName || !newDescription) {
         return res.status(400).json({ error: "Both newCategoryName and newDescription are required" });
     }
 
     try {
-        const parsedUserId = parseInt(userId);
+        const where = {
+            user_id_category_name: {
+                user_id: req.user.id,
+                category_name: categoryName
+            }
+        };
 
         // Check if the category exists
-        const existingCategory = await prisma.categoryPreference.findUnique({
-            where: {
-                user_id_category_name: {
-                    user_id: parsedUserId,
-                    category_name: categoryName
-                }
-            }
-        });
+        const existingCategory = await prisma.categoryPreference.findUnique({ where });
 
         if (!existingCategory) {
             return res.status(404).json({ error: "Category not found" });
@@ -31,12 +25,7 @@ export const updateCategory = async (req, res) => {
 
         // Update category
         const updated = await prisma.categoryPreference.update({
-            where: {
-                user_id_category_name: {
-                    user_id: parsedUserId,
-                    category_name: categoryName
-                }
-            },
+            where,
             data: {
                 category_name: newCategoryName,
                 category_description: newDescription
@@ -46,7 +35,7 @@ export const updateCategory = async (req, res) => {
         return res.json({ message: "Category updated successfully", category: updated });
     } catch (error) {
         console.error("Database update error:", error);
-        return res.status(500).json({ error: "Internal server error", details: error.message });
+        return res.status(500).json({ error: "Internal server error" });
     }
 };
 

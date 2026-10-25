@@ -1,15 +1,9 @@
 import prisma from '../../prisma.js';
 
 export const getCategories = async (req, res) => {
-    const { userId } = req.params;
-
-    if (!userId || isNaN(parseInt(userId))) {
-        return res.status(400).json({ error: "A valid userId is required" });
-    }
-
     try {
         const result = await prisma.categoryPreference.findMany({
-            where: { user_id: parseInt(userId) },
+            where: { user_id: req.user.id },
             select: { category_name: true, category_description: true }
         });
 

@@ -47,7 +47,7 @@ const Error = () => {
 
             <Button
                 variant="contained"
-                onClick={() => navigate('/email/All')}
+                onClick={() => navigate('/emails/All')}
                 sx={{
                     backgroundColor: '#2563eb',
                     borderRadius: 2,

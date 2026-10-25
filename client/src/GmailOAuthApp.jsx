@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import http, { baseURL } from "./api/http";
 import { motion } from "framer-motion";
 import { Mail, Sparkles, Settings2, Zap, PenTool, ArrowRight, Shield, Lock } from "lucide-react";
 
@@ -8,8 +9,8 @@ const MailWiseLogin = () => {
   const startOAuthFlow = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/auth/url`);
-      const { authUrl } = await response.json();
+      const response = await http.get("/auth/url");
+      const { authUrl } = response.data;
       window.location.href = authUrl;
     } catch (error) {
       console.error("OAuth Flow Error:", error);
@@ -108,7 +109,7 @@ const MailWiseLogin = () => {
 
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
               <button
-                onClick={() => { window.location.href = `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/auth/demo` }}
+                onClick={() => { window.location.href = `${baseURL}/auth/demo` }}
                 disabled={loading}
                 className="group relative flex items-center justify-center gap-3 bg-white hover:bg-slate-50 text-slate-900 border border-slate-200 px-8 py-4 rounded-2xl text-lg font-semibold transition-all shadow-sm disabled:opacity-70 disabled:cursor-not-allowed"
               >

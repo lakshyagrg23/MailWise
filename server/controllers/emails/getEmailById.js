@@ -2,15 +2,13 @@ import { extractBody } from "../helpFunctions/extractBody.js";
 import { getAuthenticatedClient } from "../../services/googleAuthService.js";
 
 export const getEmailById = async (req, res) => {
-    // Accommodates both :emailId and legacy :userId parameter names
-    const emailId = req.params.emailId || req.params.userId;
-    const accessToken = req.headers.authorization?.split(" ")[1] || req.query.access_token;
+    const emailId = req.params.emailId;
 
-    if (!emailId || !accessToken) {
-        return res.status(400).json({ error: "Missing email ID or access_token" });
+    if (!emailId) {
+        return res.status(400).json({ error: "Missing email ID" });
     }
 
-    if (accessToken === "demo") {
+    if (req.user.isDemo) {
         return res.json({
             email: {
                 _id: emailId,
@@ -26,7 +24,7 @@ export const getEmailById = async (req, res) => {
     }
 
     try {
-        const { gmail } = await getAuthenticatedClient({ accessToken, userId: req.query.user_id });
+        const { gmail } = await getAuthenticatedClient({ userId: req.user.id });
         const msg = await gmail.users.messages.get({ userId: "me", id: emailId });
 
         if (!msg.data) {
@@ -90,7 +88,7 @@ export const getEmailById = async (req, res) => {
         });
     } catch (error) {
         console.error(`Error fetching email ${emailId}:`, error);
-        return res.status(500).json({ error: "Failed to fetch email", details: error.message });
+        return res.status(500).json({ error: "Failed to fetch email" });
     }
 };
 

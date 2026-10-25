@@ -9,15 +9,10 @@ dotenv.config();
 
 export const getEmailsByCategory = async (req, res) => {
     const { category } = req.params;
-    const accessToken = req.query.access_token;
-
-    if (!accessToken) {
-        return res.status(401).json({ error: "Missing access token" });
-    }
 
     // 1. Handle Demo Account
-    if (accessToken === "demo") {
-        const user = await prisma.user.findUnique({ where: { google_id: 'demo_google_id' } });
+    if (req.user.isDemo) {
+        const user = await prisma.user.findUnique({ where: { id: req.user.id } });
         if (!user) return res.status(404).json({ error: "Demo user not found" });
 
         const whereClause = { user_id: user.id };
@@ -44,15 +39,11 @@ export const getEmailsByCategory = async (req, res) => {
     }
 
     try {
-        const queryUserId = req.query.user_id;
+        const userId = req.user.id;
 
         // 2. Resolve Authenticated Client and User
-        const { gmail, accessToken: activeToken, user: authUser } = await getAuthenticatedClient({
-            accessToken,
-            userId: queryUserId
-        });
+        const { gmail, accessToken: activeToken, user: authUser } = await getAuthenticatedClient({ userId });
 
-        let userId = authUser?.id;
         let userInfo = null;
 
         try {
@@ -60,20 +51,8 @@ export const getEmailsByCategory = async (req, res) => {
                 headers: { Authorization: `Bearer ${activeToken}` }
             });
             userInfo = userInfoResponse.data;
-
-            if (!userId) {
-                const user = await prisma.user.findUnique({
-                    where: { google_id: userInfo.id },
-                    select: { id: true }
-                });
-                userId = user?.id;
-            }
         } catch (infoErr) {
             console.warn("[getEmailsByCategory] UserInfo fetch warning:", infoErr.message);
-        }
-
-        if (!userId) {
-            return res.status(404).json({ error: "User not found in database" });
         }
 
         // 3. List Latest Message IDs from Gmail (Excluding Trash and Drafts)
@@ -140,13 +119,12 @@ export const getEmailsByCategory = async (req, res) => {
             emails: serializedEmails,
             name: userInfo?.name || authUser?.name,
             pic: userInfo?.picture || authUser?.profile_pic_url,
-            email: userInfo?.email || authUser?.email,
-            activeToken: activeToken
+            email: userInfo?.email || authUser?.email
         });
 
     } catch (error) {
         console.error("Error fetching/classifying emails:", error);
-        return res.status(500).json({ error: "Failed to fetch/classify emails", details: error.message });
+        return res.status(500).json({ error: "Failed to fetch/classify emails" });
     }
 };
 

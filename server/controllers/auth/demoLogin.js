@@ -1,4 +1,5 @@
 import prisma from '../../prisma.js';
+import { createSession } from '../../utils/session.js';
 
 export const demoLogin = async (req, res) => {
     try {
@@ -68,7 +69,8 @@ export const demoLogin = async (req, res) => {
             });
         }
 
-        res.redirect(`${process.env.FRONTEND_URL}/emails/inbox?access_token=demo&user_id=${user.id}&name=${encodeURIComponent(user.name)}&update=1`);
+        createSession(res, user.id);
+        res.redirect(`${process.env.FRONTEND_URL}/emails/inbox`);
     } catch (error) {
         console.error('Demo Login Error:', error);
         res.status(500).json({ error: 'Failed to create or fetch demo account' });

@@ -16,50 +16,38 @@ export const createOAuth2Client = () => {
 };
 
 /**
- * Retrieves an authenticated OAuth2Client and Gmail instance for a given user or access token.
+ * Retrieves an authenticated OAuth2Client and Gmail instance for a user.
+ * The userId MUST come from the authenticated session (req.user.id).
  * Automatically refreshes expired access tokens using the stored refresh_token in PostgreSQL.
  *
  * @param {Object} params
- * @param {string} [params.accessToken]
- * @param {number|string} [params.userId]
- * @param {string} [params.googleId]
- * @returns {Promise<{ authClient: any, gmail: any, user: any, accessToken: string, isDemo: boolean }>}
+ * @param {number} params.userId
+ * @returns {Promise<{ authClient: any, gmail: any, user: any, accessToken: string }>}
  */
-export const getAuthenticatedClient = async ({ accessToken, userId, googleId } = {}) => {
-    // Sanitize string "null" or "undefined"
-    let cleanAccessToken = accessToken;
-    if (cleanAccessToken === 'undefined' || cleanAccessToken === 'null') {
-        cleanAccessToken = null;
-    }
-
-    // 1. Handle demo mode
-    if (cleanAccessToken === 'demo') {
-        return { isDemo: true, accessToken: 'demo' };
+export const getAuthenticatedClient = async ({ userId } = {}) => {
+    if (!Number.isInteger(userId)) {
+        throw new Error("getAuthenticatedClient requires a numeric userId");
     }
 
     const oauth2Client = createOAuth2Client();
 
-    // 2. Find user in database to retrieve stored tokens
-    let user = null;
-    if (userId && !isNaN(parseInt(userId))) {
-        user = await prisma.user.findUnique({ where: { id: parseInt(userId) } });
-    } else if (googleId) {
-        user = await prisma.user.findUnique({ where: { google_id: googleId } });
-    } else if (cleanAccessToken) {
-        user = await prisma.user.findFirst({ where: { access_token: cleanAccessToken } });
+    // 1. Load the user's stored tokens
+    let user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+        throw new Error("User not found");
     }
 
-    // 3. Determine active token and refresh token (prefer latest DB token if user resolved)
-    let currentToken = user?.access_token || cleanAccessToken;
-    const refreshToken = user?.refresh_token;
-    const tokenExpiry = user?.token_expiry ? new Date(user.token_expiry).getTime() : 0;
+    // 2. Determine active token and refresh token
+    let currentToken = user.access_token;
+    const refreshToken = user.refresh_token;
+    const tokenExpiry = user.token_expiry ? new Date(user.token_expiry).getTime() : 0;
     // Check if token has expired or is expiring within the next 5 minutes
     const isExpired = tokenExpiry > 0 && Date.now() >= (tokenExpiry - 5 * 60 * 1000);
 
-    // 4. Auto-refresh if expired and refresh_token is present
+    // 3. Auto-refresh if expired and refresh_token is present
     if (refreshToken && (isExpired || !currentToken)) {
         try {
-            console.log(`[AuthService] Refreshing access token for user ${user?.email || user?.id}...`);
+            console.log(`[AuthService] Refreshing access token for user ${user.id}...`);
             oauth2Client.setCredentials({ refresh_token: refreshToken });
             const refreshResponse = await oauth2Client.refreshAccessToken();
             const credentials = refreshResponse.credentials;
@@ -69,17 +57,15 @@ export const getAuthenticatedClient = async ({ accessToken, userId, googleId } =
                 ? new Date(credentials.expiry_date)
                 : new Date(Date.now() + 3600 * 1000);
 
-            if (user?.id) {
-                user = await prisma.user.update({
-                    where: { id: user.id },
-                    data: {
-                        access_token: currentToken,
-                        token_expiry: newExpiry,
-                        ...(credentials.refresh_token ? { refresh_token: credentials.refresh_token } : {})
-                    }
-                });
-            }
-            console.log(`[AuthService] Token refreshed successfully for user ${user?.id}`);
+            user = await prisma.user.update({
+                where: { id: user.id },
+                data: {
+                    access_token: currentToken,
+                    token_expiry: newExpiry,
+                    ...(credentials.refresh_token ? { refresh_token: credentials.refresh_token } : {})
+                }
+            });
+            console.log(`[AuthService] Token refreshed successfully for user ${user.id}`);
         } catch (refreshErr) {
             console.error("[AuthService] Failed to auto-refresh access token:", refreshErr.message);
         }
@@ -100,7 +86,6 @@ export const getAuthenticatedClient = async ({ accessToken, userId, googleId } =
         authClient: oauth2Client,
         gmail,
         user,
-        accessToken: currentToken,
-        isDemo: false
+        accessToken: currentToken
     };
 };

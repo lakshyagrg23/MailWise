@@ -1,19 +1,13 @@
 import prisma from '../../prisma.js';
 
 export const deleteCategory = async (req, res) => {
-    const { userId, categoryName } = req.params;
-
-    if (!userId || isNaN(parseInt(userId))) {
-        return res.status(400).json({ error: "A valid userId is required" });
-    }
+    const { categoryName } = req.params;
 
     try {
-        const parsedUserId = parseInt(userId);
-
         const deleted = await prisma.categoryPreference.delete({
             where: {
                 user_id_category_name: {
-                    user_id: parsedUserId,
+                    user_id: req.user.id,
                     category_name: categoryName
                 }
             }

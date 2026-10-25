@@ -7,7 +7,7 @@ services:
     restart: always
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-Lakshya23}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
       POSTGRES_DB: ${DB_NAME:-mailwise}
     ports:
       - "5432:5432"
@@ -30,7 +30,7 @@ services:
       # Override the DB host to point to the db container
       - DB_HOST=db
       - DB_PORT=5432
-      - DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-Lakshya23}@db:5432/${DB_NAME:-mailwise}?schema=public
+      - DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:?set DB_PASSWORD in .env}@db:5432/${DB_NAME:-mailwise}?schema=public
 
   frontend:
     build:

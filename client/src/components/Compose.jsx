@@ -1,5 +1,5 @@
 import React, { useContext } from 'react';
-import axios from 'axios';
+import http from '../api/http';
 import {
   Dialog,
   DialogContent,
@@ -79,14 +79,7 @@ const Compose = ({ openDialog, setOpenDialog }) => {
   const sendMail = async (e) => {
     e.preventDefault();
     try {
-      const urlParams = new URLSearchParams(window.location.search);
-      const token = hook.accessToken || urlParams.get('access_token') || localStorage.getItem('mailwise_token') || localStorage.getItem('access_token');
-      const userId = hook.selectedUser || localStorage.getItem('mailwise_user_id');
-
-      const response = await axios.post(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/email/send-emails`, {
-        params: { access_token: token, user_id: userId },
-        access_token: token,
-        user_id: userId,
+      const response = await http.post('/email/send-emails', {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(hook.data),
       });

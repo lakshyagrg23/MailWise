@@ -6,9 +6,10 @@ import { deleteCategory } from "../controllers/categories/deleteCategory.js";
 
 const router = Router();
 
-router.get("/:userId", getCategories);
-router.put("/:userId/:categoryName", updateCategory);
-router.post("/:userId", createCategory);
-router.delete("/:userId/:categoryName", deleteCategory);
+// Identity comes from req.user (requireAuth); no userId in the path.
+router.get("/", getCategories);
+router.post("/", createCategory);
+router.put("/:categoryName", updateCategory);
+router.delete("/:categoryName", deleteCategory);
 
 export default router;

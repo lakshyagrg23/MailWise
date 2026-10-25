@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { summarizeLimiter } from "../middleware/rateLimit.js";
 import { sendEmail } from "../controllers/emails/sendEmail.js";
 import { clearUserEmails } from "../controllers/emails/clearUserEmails.js";
 import { summarizeEmail } from "../controllers/emails/summarizeEmail.js";
@@ -9,9 +10,9 @@ const router = Router();
 router.post("/send-emails", sendEmail);
 
 // On-demand AI Summarization with database caching
-router.get("/summarize/:emailId", summarizeEmail);
+router.get("/summarize/:emailId", summarizeLimiter, summarizeEmail);
 
-// Delete/clear stored emails for a user (preserve demo user)
-router.delete("/:userId", clearUserEmails);
+// Delete/clear the authenticated user's stored emails (demo user preserved)
+router.delete("/", clearUserEmails);
 
 export default router;

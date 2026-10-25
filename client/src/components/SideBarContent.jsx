@@ -19,7 +19,7 @@ import { emailContext } from "../App";
 import { getRandomColor } from "../content/getColor";
 import { motion } from "framer-motion";
 import { Refresh } from "./Refresh";
-import axios from "axios";
+import http from "../api/http";
 
 const SYSTEM_CATEGORIES = ["Promotions", "Social", "Spam"];
 
@@ -28,7 +28,6 @@ const SideBarContent = () => {
   const [openDialog, setOpenDialog] = useState(false);
   const [openPopup, setOpenPopup] = useState(false);
   const { type } = useParams();
-  const activeUserId = categoryHook.selectedUser || localStorage.getItem("mailwise_user_id");
 
   const getCategoryCount = (categoryName) => {
     if (!categoryHook.emails || categoryHook.emails.length === 0) return 0;
@@ -50,9 +49,7 @@ const SideBarContent = () => {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const response = await axios.get(
-          `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/categories/${activeUserId}`
-        );
+        const response = await http.get('/categories');
         categoryHook.setCategories([
           { name: "All", title: "All Emails" },
           ...response.data,
@@ -61,8 +58,8 @@ const SideBarContent = () => {
         console.error("Error fetching categories:", error);
       }
     };
-    if (activeUserId) fetchCategories();
-  }, [activeUserId]);
+    if (categoryHook.selectedUser) fetchCategories();
+  }, [categoryHook.selectedUser]);
 
   // Separate focus categories from system buckets
   const { focusCategories, systemBuckets } = useMemo(() => {

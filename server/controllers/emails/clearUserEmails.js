@@ -1,23 +1,14 @@
 import prisma from '../../prisma.js';
 
 export const clearUserEmails = async (req, res) => {
-    const { userId } = req.params;
-
-    if (!userId || isNaN(parseInt(userId))) {
-        return res.status(400).json({ error: "A valid userId is required" });
+    // Prevent deleting the mock emails for the demo account
+    if (req.user.isDemo) {
+        return res.status(200).json({ message: "Demo emails preserved.", deletedRows: 0 });
     }
 
     try {
-        const parsedUserId = parseInt(userId);
-        const user = await prisma.user.findUnique({ where: { id: parsedUserId } });
-
-        if (user && user.google_id === 'demo_google_id') {
-            // Prevent deleting the mock emails for the demo account
-            return res.status(200).json({ message: "Demo emails preserved.", deletedRows: 0 });
-        }
-
         const result = await prisma.emailMetadata.deleteMany({
-            where: { user_id: parsedUserId }
+            where: { user_id: req.user.id }
         });
 
         return res.status(200).json({ message: "Emails deleted successfully", deletedRows: result.count });

@@ -1,30 +1,25 @@
 import prisma from '../../prisma.js';
 
 export const createCategory = async (req, res) => {
-    const { userId } = req.params;
     const { newCategoryName, newDescription } = req.body || {};
-
-    if (!userId || isNaN(parseInt(userId))) {
-        return res.status(400).json({ error: "A valid userId is required." });
-    }
 
     if (!newCategoryName || !newDescription) {
         return res.status(400).json({ error: "Category name and description are required." });
     }
 
     try {
-        const parsedUserId = parseInt(userId);
+        const userId = req.user.id;
 
         const result = await prisma.categoryPreference.create({
             data: {
-                user_id: parsedUserId,
+                user_id: userId,
                 category_name: newCategoryName,
                 category_description: newDescription
             }
         });
 
         await prisma.user.update({
-            where: { id: parsedUserId },
+            where: { id: userId },
             data: { update: 1 }
         });
 

@@ -1,35 +1,15 @@
-import axios from 'axios';
+import http from './http';
 
-const API_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
-
-const fetchEmails = async (category, accessToken, userId, date) => {
+const fetchEmails = async (category) => {
     try {
-        const token = accessToken || localStorage.getItem('mailwise_token');
-        const uid = userId || localStorage.getItem('mailwise_user_id');
-
-        if (!token) return { emails: [] };
-
-        if (!(date instanceof Date)) date = new Date();
-        const dateString = date.toISOString();
-
-        const response = await axios.get(`${API_URL}/fetch-emails/${category}`, {
-            params: { 
-                access_token: token,
-                user_id: uid,
-                date: dateString
-            }
-        });
-
-        const activeToken = response.data?.activeToken || token;
-        if (response.data?.activeToken && response.data.activeToken !== token) {
-            localStorage.setItem('mailwise_token', response.data.activeToken);
-        }
+        const response = await http.get(`/fetch-emails/${encodeURIComponent(category)}`);
 
         const email = response.data?.email;
         const pic = response.data?.pic;
+        const name = response.data?.name;
         const emails = response.data?.emails || [];
 
-        return { emails, email, pic, activeToken }; 
+        return { emails, email, pic, name };
     } catch (error) {
         console.error("Error fetching emails:", error);
         return { emails: [] };

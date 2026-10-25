@@ -1,5 +1,6 @@
 import axios from 'axios';
 import prisma from '../../prisma.js';
+import { createSession, consumeOAuthState } from '../../utils/session.js';
 
 const defaultCategories = [
     { name: "Essential", description: "Important career, academic, or life updates such as job offers, exam schedules, etc." },
@@ -13,8 +14,14 @@ const defaultCategories = [
 
 export const callback = (oauth2Client) => async (req, res) => {
     try {
+        if (!consumeOAuthState(req, res)) {
+            return res.status(400).send("Invalid OAuth state");
+        }
+
         const { code } = req.query;
-        console.log("Received OAuth code:", code);
+        if (typeof code !== 'string' || !code) {
+            return res.status(400).send("Missing authorization code");
+        }
 
         const { tokens } = await oauth2Client.getToken(code);
         console.log("Received OAuth tokens:", {
@@ -89,8 +96,9 @@ export const callback = (oauth2Client) => async (req, res) => {
             console.log("Existing user tokens updated for ID:", userId);
         }
 
-        // Redirect to frontend with authentication params
-        return res.redirect(`${process.env.FRONTEND_URL}/emails/inbox?access_token=${accessToken}&user_id=${userId}&name=${encodeURIComponent(userName)}&update=${update}`);
+        // Start a server-side session; no credentials or identifiers go in the URL
+        createSession(res, userId);
+        return res.redirect(`${process.env.FRONTEND_URL}/emails/inbox`);
     } catch (error) {
         console.error("Error during OAuth callback:", error);
         return res.status(500).send("Authentication failed");

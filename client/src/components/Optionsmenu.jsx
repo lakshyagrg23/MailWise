@@ -1,3 +1,4 @@
+import http from "../api/http";
 import React, { useState, useContext } from "react";
 import { emailContext } from "../App";
 import { motion, AnimatePresence } from "framer-motion";
@@ -12,19 +13,20 @@ const flyIn = {
 };
 
 const OptionsMenu = () => {
-  const { name, email, picture } = useContext(emailContext);
+  const { name, email, picture, resetSession } = useContext(emailContext);
   const [helpOpen, setHelpOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
 
-  const logout = () => {
-    localStorage.removeItem("mailwise_token");
-    localStorage.removeItem("mailwise_user_id");
-    localStorage.removeItem("mailwise_user_name");
-    localStorage.clear();
-    window.location.href = "/";
+  const logout = async () => {
+    try {
+      await http.post("/auth/logout");
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+    resetSession();
   };
 
-  const displayName = name || localStorage.getItem("mailwise_user_name") || "User";
+  const displayName = name || "User";
 
   return (
     <div className="fixed top-3 right-4 z-50 flex items-center gap-3 font-sans">

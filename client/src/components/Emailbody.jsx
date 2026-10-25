@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { styled } from '@mui/material';
 import { motion } from 'framer-motion';
+import { formatEmailBody } from '../utils/formatEmailBody';
 
 const StyledBody = styled(motion.div)({
     fontSize: '14.5px',
@@ -15,6 +16,10 @@ const StyledBody = styled(motion.div)({
     overflowWrap: 'anywhere',
     border: '1px solid #e2e8f0',
     position: 'relative',
+
+    '&[data-format="html"]': {
+        whiteSpace: 'normal',
+    },
 
     'h1, h2, h3, h4, h5, h6': {
         color: '#0f172a',
@@ -83,29 +88,62 @@ const StyledBody = styled(motion.div)({
     },
 });
 
-const formatEmailBody = (text) => {
-    if (!text) return "No message content available.";
-
-    // Convert URLs to clickable links
-    const urlRegex = /((https?:\/\/[^\s<]+))/g;
-    let formatted = text.replace(urlRegex, (url) => {
-        return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
-    });
-
-    // Preserve line breaks
-    formatted = formatted.replace(/\n/g, '<br />');
-
-    return formatted;
-};
-
 const EmailBody = ({ email }) => {
+    const [allowImages, setAllowImages] = useState(false);
+
+    // Re-block images whenever a different email is shown
+    useEffect(() => {
+        setAllowImages(false);
+    }, [email?.id, email?.body]);
+
+    const { html, isHtml, blockedImages } = useMemo(
+        () => formatEmailBody(email?.body, { allowImages }),
+        [email?.body, allowImages]
+    );
+
     return (
-        <StyledBody
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, ease: 'easeOut' }}
-            dangerouslySetInnerHTML={{ __html: formatEmailBody(email?.body) }}
-        />
+        <>
+            {blockedImages > 0 && !allowImages && (
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '8px 14px',
+                        marginBottom: '8px',
+                        fontSize: '13px',
+                        color: '#475569',
+                        background: '#f8fafc',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '8px',
+                    }}
+                >
+                    <span>Remote images blocked ({blockedImages})</span>
+                    <button
+                        type="button"
+                        onClick={() => setAllowImages(true)}
+                        style={{
+                            border: 'none',
+                            background: 'none',
+                            color: '#2563eb',
+                            fontWeight: 500,
+                            cursor: 'pointer',
+                            textDecoration: 'underline',
+                            padding: 0,
+                        }}
+                    >
+                        Load images
+                    </button>
+                </div>
+            )}
+            <StyledBody
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, ease: 'easeOut' }}
+                data-format={isHtml ? 'html' : 'text'}
+                dangerouslySetInnerHTML={{ __html: html }}
+            />
+        </>
     );
 };
 

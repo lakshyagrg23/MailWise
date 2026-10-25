@@ -1,5 +1,5 @@
 import React, { useState, useContext } from "react";
-import axios from "axios";
+import http from "../api/http";
 import {
   Box,
   Typography,
@@ -21,15 +21,13 @@ import { getRandomColor } from "../content/getColor";
 const SYSTEM_PROTECTED = ["all", "promotions", "social", "spam"];
 
 const NewCategory = () => {
-  const { categories, setCategories, update, setUpdate, selectedUser } = useContext(emailContext);
+  const { categories, setCategories, update, setUpdate } = useContext(emailContext);
   const [editingCategory, setEditingCategory] = useState(null);
   const [editedDescription, setEditedDescription] = useState("");
   const [isAdding, setIsAdding] = useState(false);
   const [categoryName, setCategoryName] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
-
-  const userId = selectedUser || localStorage.getItem("mailwise_user_id");
 
   const handleEditClick = (category) => {
     setEditingCategory(category.name);
@@ -38,11 +36,11 @@ const NewCategory = () => {
 
   const handleCreateCategory = async (e) => {
     e.preventDefault();
-    if (!categoryName.trim() || !description.trim() || !userId) return;
+    if (!categoryName.trim() || !description.trim()) return;
 
     setLoading(true);
     try {
-      const response = await axios.post(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/categories/${userId}`, {
+      const response = await http.post('/categories', {
         newCategoryName: categoryName.trim(),
         newDescription: description.trim(),
         update: parseInt(update || 1) + 1
@@ -62,11 +60,11 @@ const NewCategory = () => {
   };
 
   const handleSaveEdit = async (name) => {
-    if (!userId || !editedDescription.trim()) return;
+    if (!editedDescription.trim()) return;
 
     setLoading(true);
     try {
-      const response = await axios.put(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/categories/${userId}/${name}`, {
+      const response = await http.put(`/categories/${encodeURIComponent(name)}`, {
         newCategoryName: name,
         newDescription: editedDescription.trim(),
         update: parseInt(update || 1) + 1
@@ -87,13 +85,12 @@ const NewCategory = () => {
   };
 
   const handleDeleteCategory = async (name) => {
-    if (!userId) return;
     const confirmDelete = window.confirm(`Are you sure you want to delete the "${name}" category?`);
     if (!confirmDelete) return;
 
     setLoading(true);
     try {
-      await axios.delete(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/categories/${userId}/${name}`, {
+      await http.delete(`/categories/${encodeURIComponent(name)}`, {
         data: { update: parseInt(update || 1) + 1 }
       });
       setUpdate(prev => parseInt(prev || 1) + 1);
