@@ -20,7 +20,7 @@ jobs:
     
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Lowercase the repository owner string to avoid docker push errors
       - name: Set lower case owner name
