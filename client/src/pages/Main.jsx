@@ -1,20 +1,28 @@
-import React, { Suspense, useState } from "react";
-import { Outlet } from "react-router-dom";
-import { Box } from "@mui/material";
+import React, { Suspense, useEffect, useState } from "react";
+import { Outlet, useLocation } from "react-router-dom";
+import { Box, useMediaQuery } from "@mui/material";
 import Header from "../components/Header";
-import SideBar from "../components/SideBar";
+import SideBar, { SIDEBAR_WIDTH } from "../components/SideBar";
 import SuspenseLoader from "../components/error/SuspenseLoader";
 
 const HEADER_HEIGHT = 64;
-const SIDEBAR_WIDTH = 270;
-const COLLAPSED_SIDEBAR_WIDTH = 0;
 
 const Main = () => {
-  const [openDrawer, setOpenDrawer] = useState(true);
+  const isMobile = useMediaQuery("(max-width:899px)");
+  const [openDrawer, setOpenDrawer] = useState(() => !window.matchMedia("(max-width:899px)").matches);
+  const location = useLocation();
 
-  const toggleDrawer = () => {
-    setOpenDrawer((prev) => !prev);
-  };
+  // Crossing the breakpoint: open on desktop, closed on mobile
+  useEffect(() => {
+    setOpenDrawer(!isMobile);
+  }, [isMobile]);
+
+  // On mobile the drawer is an overlay: close it once the user navigates
+  useEffect(() => {
+    if (isMobile) setOpenDrawer(false);
+  }, [location.pathname, isMobile]);
+
+  const toggleDrawer = () => setOpenDrawer((prev) => !prev);
 
   return (
     <Box
@@ -32,7 +40,7 @@ const Main = () => {
         <Header toggleDrawer={toggleDrawer} />
       </Box>
 
-      {/* Main Workspace Area (Sidebar + Scrollable Content) */}
+      {/* Sidebar + scrollable content */}
       <Box
         sx={{
           display: "flex",
@@ -42,10 +50,8 @@ const Main = () => {
           position: "relative"
         }}
       >
-        {/* Left Sidebar */}
-        <SideBar openDrawer={openDrawer} />
+        <SideBar openDrawer={openDrawer} onClose={() => setOpenDrawer(false)} isMobile={isMobile} />
 
-        {/* Scrollable Content Container */}
         <Box
           component="main"
           sx={{
@@ -53,7 +59,7 @@ const Main = () => {
             height: "100%",
             overflowY: "auto",
             overflowX: "hidden",
-            marginLeft: openDrawer ? `${SIDEBAR_WIDTH}px` : `${COLLAPSED_SIDEBAR_WIDTH}px`,
+            marginLeft: !isMobile && openDrawer ? `${SIDEBAR_WIDTH}px` : 0,
             transition: "margin-left 0.25s ease-in-out",
             display: "flex",
             flexDirection: "column",

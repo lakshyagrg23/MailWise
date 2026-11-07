@@ -16,18 +16,19 @@ import InboxOutlinedIcon from "@mui/icons-material/InboxOutlined";
 import StarBorderRoundedIcon from "@mui/icons-material/StarBorderRounded";
 import SendOutlinedIcon from "@mui/icons-material/SendOutlined";
 import EditNoteOutlinedIcon from "@mui/icons-material/EditNoteOutlined";
+import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import PushPinIcon from "@mui/icons-material/PushPin";
 import PushPinOutlinedIcon from "@mui/icons-material/PushPinOutlined";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import AddIcon from "@mui/icons-material/Add";
+import CloseIcon from "@mui/icons-material/Close";
 import NewCategory from "./NewCategory";
 import Compose from "./Compose";
 import { NavLink } from "react-router-dom";
 import { routes } from "../routes/route";
 import { emailContext } from "../App";
 import { getRandomColor } from "../content/getColor";
-import { Refresh } from "./Refresh";
 import http from "../api/http";
 
 // Gmail-derived buckets: low priority, grouped and collapsed by default
@@ -38,7 +39,8 @@ const MAILBOXES = ["all", "starred", "sent", "drafts"];
 const VISIBLE_LIMIT = 5;
 const PREFS_KEY = "mailwise_sidebar_v1";
 
-const defaultPrefs = { usage: {}, pinned: [], filteredOpen: false, moreOpen: false };
+// `order` is the user's manual order of unpinned categories (set by drag-and-drop / Alt+arrows)
+const defaultPrefs = { usage: {}, pinned: [], order: [], filteredOpen: false, moreOpen: false };
 
 const loadPrefs = () => {
   try {
@@ -57,25 +59,52 @@ const sectionLabelSx = {
 };
 
 const NavItem = ({
-  to, label, color, icon, count, active, muted, onClick, pinned, onTogglePin
+  to, label, color, icon, count, active, muted, onClick, pinned, onTogglePin, dnd
 }) => (
-  <NavLink to={to} onClick={onClick} style={{ textDecoration: "none" }}>
+  <NavLink
+    to={to}
+    onClick={onClick}
+    style={{ textDecoration: "none" }}
+    draggable={!!dnd}
+    onDragStart={dnd?.onDragStart}
+    onDragOver={dnd?.onDragOver}
+    onDrop={dnd?.onDrop}
+    onDragEnd={dnd?.onDragEnd}
+    onKeyDown={dnd?.onKeyDown}
+    title={dnd ? "Drag to reorder (or Alt + ↑/↓)" : undefined}
+  >
     <Box
       sx={{
+        position: "relative",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
         px: 1.5,
         py: 0.9,
         borderRadius: 2,
-        cursor: "pointer",
+        cursor: dnd ? "grab" : "pointer",
+        opacity: dnd?.dragging ? 0.4 : 1,
         backgroundColor: active ? "#eff6ff" : "transparent",
         color: active ? "#2563eb" : muted ? "#64748b" : "#334155",
-        transition: "background-color 0.15s ease",
+        transition: "background-color 0.15s ease, opacity 0.15s ease",
+        // Drop indicator: a blue line above/below the hovered target
+        boxShadow:
+          dnd?.dropPos === "before"
+            ? "inset 0 2px 0 #2563eb"
+            : dnd?.dropPos === "after"
+              ? "inset 0 -2px 0 #2563eb"
+              : "none",
         "&:hover": { backgroundColor: active ? "#eff6ff" : "#f8fafc" },
-        "&:hover .pin-btn": { opacity: 1 }
+        "&:hover .pin-btn": { opacity: 1 },
+        "&:hover .grip": { opacity: 1 }
       }}
     >
+      {dnd && (
+        <DragIndicatorIcon
+          className="grip"
+          sx={{ position: "absolute", left: -2, fontSize: 16, color: "#cbd5e1", opacity: 0, transition: "opacity 0.15s ease" }}
+        />
+      )}
       <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minWidth: 0 }}>
         {icon ? (
           React.cloneElement(icon, { sx: { fontSize: 19, color: active ? "#2563eb" : "#64748b" } })
@@ -193,9 +222,10 @@ const SideBarContent = () => {
   const handlePopupOpen = () => setOpenPopup(true);
   const handlePopupClose = () => setOpenPopup(false);
 
-  const handleSave = async () => {
-    Refresh();
+  // Category edits are already saved server-side as they happen: just close and pull fresh mail
+  const handleSave = () => {
     handlePopupClose();
+    categoryHook.refreshMail();
   };
 
   useEffect(() => {
@@ -225,8 +255,9 @@ const SideBarContent = () => {
       pinned: p.pinned.includes(name) ? p.pinned.filter((n) => n !== name) : [...p.pinned, name]
     }));
 
-  // User categories only, ranked: pinned first, then most-opened, then most mail
-  const { visible, folded } = useMemo(() => {
+  // User categories only. Order: pinned first; then your manual order (drag-and-drop);
+  // anything not manually placed yet falls back to most-opened, then most mail.
+  const { visible, folded, ranked } = useMemo(() => {
     const cats = (categoryHook.categories || [])
       .map((c) => c.name)
       .filter(
@@ -237,11 +268,15 @@ const SideBarContent = () => {
       );
 
     const pinned = prefs.pinned.filter((n) => cats.includes(n));
-    const rest = cats
-      .filter((n) => !pinned.includes(n))
+    const unpinned = cats.filter((n) => !pinned.includes(n));
+    const manual = prefs.order.filter((n) => unpinned.includes(n));
+    const auto = unpinned
+      .filter((n) => !manual.includes(n))
       .map((n, i) => ({ n, i, uses: prefs.usage[n] || 0, count: getCategoryCount(n) }))
       .sort((a, b) => b.uses - a.uses || b.count - a.count || a.i - b.i)
       .map((x) => x.n);
+    const rest = [...manual, ...auto];
+    const rankedAll = [...pinned, ...rest];
 
     const room = Math.max(0, VISIBLE_LIMIT - pinned.length);
     let shown = [...pinned, ...rest.slice(0, room)];
@@ -257,9 +292,71 @@ const SideBarContent = () => {
       shown.push(hidden[0]);
       hidden = [];
     }
-    return { visible: shown, folded: hidden };
+    // Keep the displayed order identical to the ranked order (the open category may have been pulled in)
+    shown = rankedAll.filter((n) => shown.includes(n));
+    return { visible: shown, folded: hidden, ranked: rankedAll };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [categoryHook.categories, categoryHook.emails, prefs.pinned, prefs.usage, activeName]);
+  }, [categoryHook.categories, categoryHook.emails, prefs.pinned, prefs.order, prefs.usage, activeName]);
+
+  // --- Reordering: drag-and-drop (mouse) and Alt + Up/Down (keyboard) ---
+  const [dragName, setDragName] = useState(null);
+  const [over, setOver] = useState(null); // { name, pos: "before" | "after" }
+
+  // Put `name` before/after `target`. Landing inside the pinned block pins it; landing
+  // below it unpins it, so the pinned group always stays on top.
+  const moveCategory = (name, target, pos) => {
+    if (!name || name === target) return;
+    const without = ranked.filter((n) => n !== name);
+    const ti = without.indexOf(target);
+    if (ti < 0) return;
+    const next = [...without];
+    next.splice(pos === "after" ? ti + 1 : ti, 0, name);
+
+    const pinnedSet = new Set(prefs.pinned);
+    if (pinnedSet.has(target)) pinnedSet.add(name);
+    else pinnedSet.delete(name);
+
+    updatePrefs((p) => ({
+      ...p,
+      pinned: next.filter((n) => pinnedSet.has(n)),
+      order: next.filter((n) => !pinnedSet.has(n))
+    }));
+  };
+
+  const endDrag = () => {
+    setDragName(null);
+    setOver(null);
+  };
+
+  const dndFor = (name) => ({
+    dragging: dragName === name,
+    dropPos: over?.name === name ? over.pos : null,
+    onDragStart: (e) => {
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", name);
+      setDragName(name);
+    },
+    onDragOver: (e) => {
+      if (!dragName || dragName === name) return;
+      e.preventDefault(); // allow drop
+      const r = e.currentTarget.getBoundingClientRect();
+      const pos = e.clientY < r.top + r.height / 2 ? "before" : "after";
+      setOver((prev) => (prev?.name === name && prev.pos === pos ? prev : { name, pos }));
+    },
+    onDrop: (e) => {
+      e.preventDefault();
+      moveCategory(dragName, name, over?.name === name ? over.pos : "before");
+      endDrag();
+    },
+    onDragEnd: endDrag,
+    onKeyDown: (e) => {
+      if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
+      e.preventDefault();
+      const i = ranked.indexOf(name);
+      if (e.key === "ArrowUp" && i > 0) moveCategory(name, ranked[i - 1], "before");
+      if (e.key === "ArrowDown" && i < ranked.length - 1) moveCategory(name, ranked[i + 1], "after");
+    }
+  });
 
   const categoryItem = (name) => (
     <NavItem
@@ -272,6 +369,7 @@ const SideBarContent = () => {
       onClick={() => openCategory(name)}
       pinned={prefs.pinned.includes(name)}
       onTogglePin={() => togglePin(name)}
+      dnd={dndFor(name)}
     />
   );
 
@@ -301,19 +399,32 @@ const SideBarContent = () => {
         sx={{
           backgroundColor: "#2563eb",
           color: "#ffffff",
-          borderRadius: 2.5,
-          py: 1.3,
+          borderRadius: 3,
+          py: 1.4,
           fontSize: "15px",
           fontWeight: 600,
           textTransform: "none",
-          boxShadow: "0 4px 12px rgba(37, 99, 235, 0.25)",
-          "&:hover": { backgroundColor: "#1d4ed8" }
+          boxShadow: "0 6px 16px rgba(37, 99, 235, 0.28)",
+          transition: "transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease",
+          "&:hover": { backgroundColor: "#1d4ed8", transform: "translateY(-1px)", boxShadow: "0 8px 20px rgba(37, 99, 235, 0.34)" }
         }}
       >
         Compose
       </Button>
 
-      <Box sx={{ mt: 2.5, flex: 1, overflowY: "auto" }}>
+      <Box
+        sx={{
+          mt: 2.5,
+          flex: 1,
+          overflowY: "auto",
+          mx: -1,
+          px: 1,
+          scrollbarWidth: "thin",
+          scrollbarColor: "#e2e8f0 transparent",
+          "&::-webkit-scrollbar": { width: 6 },
+          "&::-webkit-scrollbar-thumb": { backgroundColor: "#e2e8f0", borderRadius: 3 }
+        }}
+      >
         {/* Mailboxes: used constantly, always on top */}
         <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
           <NavItem
@@ -393,6 +504,24 @@ const SideBarContent = () => {
           </>
         )}
 
+        {prefs.order.length > 0 && (
+          <Box
+            onClick={() => updatePrefs({ order: [], usage: {} })}
+            sx={{
+              px: 1.5,
+              py: 0.5,
+              mt: 0.25,
+              fontSize: "12px",
+              color: "#94a3b8",
+              cursor: "pointer",
+              userSelect: "none",
+              "&:hover": { color: "#2563eb" }
+            }}
+          >
+            Reset to automatic order
+          </Box>
+        )}
+
         {/* Gmail-sorted noise: grouped, muted, collapsed by default */}
         <SectionHeader
           onClick={() => updatePrefs({ filteredOpen: !prefs.filteredOpen })}
@@ -421,23 +550,24 @@ const SideBarContent = () => {
 
       {/* Customize Categories Trigger */}
       <Button
-        variant="outlined"
         onClick={handlePopupOpen}
-        startIcon={<TuneIcon />}
+        startIcon={<TuneIcon sx={{ fontSize: 18 }} />}
         fullWidth
         sx={{
-          mt: 2,
-          borderColor: "#e2e8f0",
-          color: "#475569",
+          mt: 1.5,
+          justifyContent: "flex-start",
+          color: "#64748b",
           borderRadius: 2,
+          px: 1.5,
           py: 1,
-          fontSize: "13px",
-          fontWeight: 600,
+          fontSize: "13.5px",
+          fontWeight: 500,
           textTransform: "none",
-          "&:hover": { borderColor: "#cbd5e1", backgroundColor: "#f8fafc" }
+          borderTop: "1px solid #f1f5f9",
+          "&:hover": { backgroundColor: "#f8fafc", color: "#2563eb" }
         }}
       >
-        Manage Categories
+        Manage categories
       </Button>
 
       {/* Customize Dialog */}
@@ -447,46 +577,44 @@ const SideBarContent = () => {
         PaperProps={{
           sx: {
             backgroundColor: "#ffffff",
-            borderRadius: 3,
+            borderRadius: 4,
             border: "1px solid #e2e8f0",
-            boxShadow: "0 20px 40px rgba(0, 0, 0, 0.1)",
-            fontFamily: "'Inter', sans-serif"
+            boxShadow: "0 24px 60px rgba(15, 23, 42, 0.18)",
+            fontFamily: "'Inter', sans-serif",
+            width: "100%",
+            maxWidth: 600,
+            m: { xs: 1.5, sm: 4 }
           },
         }}
       >
-        <DialogContent sx={{ p: 3 }}>
+        <IconButton
+          onClick={handlePopupClose}
+          aria-label="Close"
+          size="small"
+          sx={{ position: "absolute", top: 14, right: 14, color: "#94a3b8", "&:hover": { color: "#0f172a", backgroundColor: "#f1f5f9" } }}
+        >
+          <CloseIcon fontSize="small" />
+        </IconButton>
+        <DialogContent sx={{ p: { xs: 2.5, sm: 3.5 }, pb: 1 }}>
           <NewCategory />
         </DialogContent>
 
-        <DialogActions sx={{ px: 3, pb: 2.5 }}>
-          <Button
-            onClick={handlePopupClose}
-            variant="outlined"
-            sx={{
-              color: "#64748b",
-              borderColor: "#cbd5e1",
-              fontWeight: 600,
-              textTransform: "none",
-              borderRadius: 2,
-              "&:hover": { borderColor: "#94a3b8", backgroundColor: "#f8fafc" }
-            }}
-          >
-            Close
-          </Button>
+        <DialogActions sx={{ px: { xs: 2.5, sm: 3.5 }, py: 2, borderTop: "1px solid #f1f5f9" }}>
           <Button
             onClick={handleSave}
             variant="contained"
+            disableElevation
             sx={{
               backgroundColor: "#2563eb",
               color: "#fff",
               fontWeight: 600,
               textTransform: "none",
               borderRadius: 2,
-              boxShadow: "none",
+              px: 3,
               "&:hover": { backgroundColor: "#1d4ed8" },
             }}
           >
-            Apply & Refresh
+            Done
           </Button>
         </DialogActions>
       </Dialog>
