@@ -10,7 +10,9 @@ export const url = (oauth2Client) => (req, res) => {
             "https://www.googleapis.com/auth/userinfo.email",
             "https://www.googleapis.com/auth/userinfo.profile",
             "https://www.googleapis.com/auth/gmail.readonly",
-            'https://www.googleapis.com/auth/gmail.send'
+            'https://www.googleapis.com/auth/gmail.send',
+            // Needed to create/update/delete drafts (readonly can list/read them but not write)
+            'https://www.googleapis.com/auth/gmail.compose'
         ],
     });
     res.json({ authUrl });

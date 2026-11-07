@@ -21,11 +21,13 @@ import { motion } from "framer-motion";
 import { Refresh } from "./Refresh";
 import http from "../api/http";
 
-const SYSTEM_CATEGORIES = ["Promotions", "Social", "Spam"];
+const SYSTEM_CATEGORIES = ["Promotions", "Social", "Spam", "Sent", "Drafts"];
 
 const SideBarContent = () => {
   const categoryHook = useContext(emailContext);
-  const [openDialog, setOpenDialog] = useState(false);
+  // Compose open-state lives in context so a draft row can open it too
+  const openDialog = categoryHook.composeOpen;
+  const setOpenDialog = categoryHook.setComposeOpen;
   const [openPopup, setOpenPopup] = useState(false);
   const { type } = useParams();
 

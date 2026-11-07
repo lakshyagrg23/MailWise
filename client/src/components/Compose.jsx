@@ -1,205 +1,475 @@
-import React, { useContext } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import http from '../api/http';
 import {
+  Box,
+  Button,
+  CircularProgress,
   Dialog,
   DialogContent,
-  Typography,
-  styled,
-  TextField,
-  Button,
   IconButton,
+  Paper,
   Slide,
-  Box
+  Tooltip,
+  Typography,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+import MinimizeIcon from '@mui/icons-material/Minimize';
+import OpenInFullIcon from '@mui/icons-material/OpenInFull';
+import CloseFullscreenIcon from '@mui/icons-material/CloseFullscreen';
 import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined';
 import SendIcon from '@mui/icons-material/Send';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import CheckIcon from '@mui/icons-material/Check';
 import { emailContext } from '../App';
 import Auto_email from './Auto_email';
 
-const Transition = React.forwardRef(function Transition(props, ref) {
-  return <Slide direction="up" ref={ref} {...props} />;
-});
+const AUTOSAVE_DELAY_MS = 2500;
+const FONT = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
-const DialogContainer = styled(Dialog)`
-  .MuiPaper-root {
-    border-radius: 16px;
-    overflow: hidden;
-    background: #ffffff;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.12);
-    border: 1px solid #e2e8f0;
-    width: 95%;
-    max-width: 780px;
-  }
-`;
+const snapshot = (d = {}) =>
+  JSON.stringify([d.to || '', d.cc || '', d.bcc || '', d.subject || '', d.body || '']);
 
-const Header = styled('div')`
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
-  padding: 16px 20px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-`;
+// Borderless row used for To / Cc / Bcc / Subject, separated by hairlines (Gmail/Outlook style)
+const FieldRow = ({ label, name, value, onChange, placeholder, right, autoFocus }) => (
+  <Box
+    sx={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: 1,
+      px: 2,
+      minHeight: 40,
+      borderBottom: '1px solid #eef2f6',
+    }}
+  >
+    {label && (
+      <Typography sx={{ fontSize: 13.5, color: '#64748b', width: 34, flexShrink: 0 }}>
+        {label}
+      </Typography>
+    )}
+    <input
+      name={name}
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      autoFocus={autoFocus}
+      autoComplete="off"
+      spellCheck={name === 'subject'}
+      style={{
+        flex: 1,
+        minWidth: 0,
+        border: 'none',
+        outline: 'none',
+        background: 'transparent',
+        fontSize: name === 'subject' ? 15 : 14,
+        fontWeight: name === 'subject' ? 500 : 400,
+        color: '#0f172a',
+        fontFamily: FONT,
+        padding: '8px 0',
+      }}
+    />
+    {right}
+  </Box>
+);
 
-const Footer = styled('div')`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 14px 20px;
-  background: #f8fafc;
-  border-top: 1px solid #e2e8f0;
-`;
-
-const RecipientWrapper = styled('div')`
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 20px;
-`;
+const LinkButton = ({ children, onClick }) => (
+  <Button
+    size="small"
+    onClick={onClick}
+    sx={{
+      minWidth: 0,
+      px: 0.75,
+      py: 0,
+      fontSize: 12.5,
+      fontWeight: 600,
+      textTransform: 'none',
+      color: '#64748b',
+      '&:hover': { color: '#2563eb', backgroundColor: 'transparent' },
+    }}
+  >
+    {children}
+  </Button>
+);
 
 const Compose = ({ openDialog, setOpenDialog }) => {
   const hook = useContext(emailContext);
+  const data = hook.data || {};
+
+  const [minimized, setMinimized] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [showCc, setShowCc] = useState(false);
+  const [showBcc, setShowBcc] = useState(false);
+  const [saveState, setSaveState] = useState('idle'); // idle | saving | saved | error
+  const [saveError, setSaveError] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState('');
+
+  const inflight = useRef(Promise.resolve());
+  const lastSaved = useRef(snapshot());
+  const draftIdRef = useRef(undefined);
+
+  const hasContent = !!(data.to || data.cc || data.bcc || data.subject || data.body);
+  const dirty = snapshot(data) !== lastSaved.current;
+
+  // Keep the draft id ref aligned with state (set after loading or saving a draft)
+  useEffect(() => {
+    draftIdRef.current = data.draftId;
+  }, [data.draftId]);
+
+  // On open: treat the loaded content as already saved, and reveal Cc/Bcc if the draft has them
+  useEffect(() => {
+    if (!openDialog) return;
+    lastSaved.current = snapshot(hook.data);
+    setMinimized(false);
+    setSaveState(hook.data?.draftId ? 'saved' : 'idle');
+    setSaveError('');
+    setSendError('');
+    setShowCc(!!hook.data?.cc);
+    setShowBcc(!!hook.data?.bcc);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openDialog]);
 
   const onValueChange = (e) => {
-    hook.setData({ ...hook.data, [e.target.name]: e.target.value });
+    hook.setData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  const handleClose = () => {
-    hook.setOpenAi(false);
+  // Serialized so two overlapping saves can never create two drafts
+  const saveDraft = () => {
+    const run = async () => {
+      const current = hook.data || {};
+      const snap = snapshot(current);
+      setSaveState('saving');
+      setSaveError('');
+      try {
+        const { to, cc, bcc, subject, body } = current;
+        const res = await http.post('/email/drafts', {
+          draftId: draftIdRef.current,
+          to,
+          cc,
+          bcc,
+          subject,
+          body,
+        });
+        draftIdRef.current = res.data.draftId;
+        lastSaved.current = snap;
+        hook.setData((prev) => ({ ...prev, draftId: res.data.draftId }));
+        hook.setDraftsVersion((v) => v + 1);
+        setSaveState('saved');
+        return true;
+      } catch (err) {
+        setSaveState('error');
+        setSaveError(err.response?.data?.error || 'Could not save draft');
+        return false;
+      }
+    };
+    inflight.current = inflight.current.then(run, run);
+    return inflight.current;
   };
 
-  const closeComposeClick = (e) => {
-    e.preventDefault();
+  // Autosave shortly after the user stops typing
+  useEffect(() => {
+    if (!openDialog || !hasContent || !dirty || sending) return undefined;
+    const t = setTimeout(saveDraft, AUTOSAVE_DELAY_MS);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openDialog, data.to, data.cc, data.bcc, data.subject, data.body, sending]);
+
+  const reset = () => {
     setOpenDialog(false);
+    setExpanded(false);
+    setSaveState('idle');
     hook.setData({});
   };
 
-  const sendMail = async (e) => {
-    e.preventDefault();
+  // Closing keeps unsaved text as a draft (like Gmail); stay open if that fails
+  const closeCompose = async () => {
+    if (hasContent && dirty && !(await saveDraft())) return;
+    reset();
+  };
+
+  const discard = async () => {
+    await inflight.current;
+    if (draftIdRef.current) {
+      try {
+        await http.delete(`/email/drafts/${draftIdRef.current}`);
+        hook.setDraftsVersion((v) => v + 1);
+      } catch (err) {
+        console.error('Deleting draft error:', err);
+      }
+    }
+    reset();
+  };
+
+  const sendMail = async () => {
+    setSendError('');
+    setSending(true);
     try {
+      await inflight.current; // let any in-flight save finish so the draft id is final
       const response = await http.post('/email/send-emails', {
-        headers: { "Content-Type": "application/json" },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(hook.data),
+        draftId: draftIdRef.current,
       });
       if (response.status === 200 || response.data?.status === 'success') {
         hook.setmessageSent(true);
-        hook.setData({});
-        setOpenDialog(false);
+        hook.setDraftsVersion((v) => v + 1);
+        reset();
       } else {
-        console.error("Failed to send email:", response.data?.message);
+        setSendError(response.data?.message || 'Failed to send');
       }
     } catch (err) {
-      console.error("Sending mail error:", err);
+      setSendError(err.response?.data?.error || 'Failed to send. Please try again.');
+    } finally {
+      setSending(false);
     }
   };
 
+  const title = data.subject?.trim() || 'New Message';
+  const canSend = !!data.to?.trim() && !sending;
+
+  const statusText =
+    saveState === 'saving'
+      ? 'Saving…'
+      : saveState === 'saved'
+        ? 'Draft saved'
+        : saveState === 'error'
+          ? saveError
+          : '';
+
+  const barIcon = { color: '#e2e8f0', '&:hover': { backgroundColor: 'rgba(255,255,255,0.12)' } };
+
   return (
-    <DialogContainer open={openDialog} TransitionComponent={Transition}>
-      <Header>
-        <Typography sx={{ fontWeight: 700, fontSize: "16px", color: "#0f172a" }}>
-          New Message
-        </Typography>
-        <IconButton size="small" onClick={closeComposeClick} sx={{ color: "#64748b" }}>
-          <CloseIcon fontSize="small" />
-        </IconButton>
-      </Header>
-
-      <RecipientWrapper>
-        <TextField
-          fullWidth
-          size="small"
-          placeholder="Recipients (To)"
-          name="to"
-          onChange={onValueChange}
-          value={hook.data?.to || ''}
+    <>
+      <Slide direction="up" in={!!openDialog} mountOnEnter unmountOnExit>
+        <Paper
+          elevation={0}
           sx={{
-            "& .MuiOutlinedInput-root": {
-              borderRadius: 2,
-              backgroundColor: "#f8fafc",
-              fontSize: "14px"
-            }
+            position: 'fixed',
+            // Centered via auto margins, not a transform: Slide owns `transform` on this element
+            left: expanded ? 0 : 'auto',
+            right: expanded ? 0 : { xs: 0, sm: 24 },
+            mx: expanded ? 'auto' : 0,
+            bottom: 0,
+            width: expanded ? 'min(860px, 96vw)' : { xs: '100%', sm: 560 },
+            height: minimized ? 'auto' : expanded ? '78vh' : { xs: '100%', sm: 560 },
+            maxHeight: '100vh',
+            zIndex: 1300,
+            display: 'flex',
+            flexDirection: 'column',
+            borderRadius: { xs: 0, sm: '14px 14px 0 0' },
+            overflow: 'hidden',
+            border: '1px solid #cbd5e1',
+            borderBottom: 'none',
+            boxShadow: '0 12px 40px rgba(15, 23, 42, 0.22)',
+            backgroundColor: '#ffffff',
+            fontFamily: FONT,
           }}
-        />
-        <TextField
-          fullWidth
-          size="small"
-          placeholder="Subject"
-          name="subject"
-          onChange={onValueChange}
-          value={hook.data?.subject || ''}
-          sx={{
-            "& .MuiOutlinedInput-root": {
-              borderRadius: 2,
-              backgroundColor: "#f8fafc",
-              fontSize: "14px"
-            }
-          }}
-        />
-        <TextField
-          fullWidth
-          multiline
-          minRows={10}
-          placeholder="Write your email here..."
-          name="body"
-          onChange={onValueChange}
-          value={hook.data?.body || ''}
-          sx={{
-            "& .MuiOutlinedInput-root": {
-              borderRadius: 2,
-              backgroundColor: "#ffffff",
-              fontSize: "14.5px"
-            }
-          }}
-        />
-      </RecipientWrapper>
-
-      <Footer>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Button
-            variant="contained"
-            onClick={sendMail}
-            endIcon={<SendIcon sx={{ fontSize: 16 }} />}
+        >
+          {/* Title bar */}
+          <Box
+            onClick={() => minimized && setMinimized(false)}
             sx={{
-              backgroundColor: '#2563eb',
-              textTransform: 'none',
-              fontWeight: 600,
-              borderRadius: 2,
-              px: 3,
-              boxShadow: 'none',
-              '&:hover': { backgroundColor: '#1d4ed8' }
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              pl: 2,
+              pr: 0.75,
+              height: 44,
+              flexShrink: 0,
+              backgroundColor: '#1e293b',
+              cursor: minimized ? 'pointer' : 'default',
             }}
           >
-            Send
-          </Button>
+            <Typography
+              noWrap
+              sx={{ fontSize: 14, fontWeight: 600, color: '#f8fafc', fontFamily: FONT }}
+            >
+              {title}
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
+              {statusText && !minimized && (
+                <Typography
+                  sx={{
+                    fontSize: 12,
+                    mr: 1,
+                    color: saveState === 'error' ? '#fca5a5' : '#94a3b8',
+                    display: { xs: 'none', sm: 'block' },
+                  }}
+                  noWrap
+                >
+                  {statusText}
+                </Typography>
+              )}
+              <Tooltip title={minimized ? 'Restore' : 'Minimize'}>
+                <IconButton size="small" sx={barIcon} onClick={() => setMinimized((m) => !m)}>
+                  <MinimizeIcon sx={{ fontSize: 18 }} />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title={expanded ? 'Exit full view' : 'Full view'}>
+                <IconButton
+                  size="small"
+                  sx={{ ...barIcon, display: { xs: 'none', sm: 'inline-flex' } }}
+                  onClick={() => {
+                    setExpanded((x) => !x);
+                    setMinimized(false);
+                  }}
+                >
+                  {expanded ? (
+                    <CloseFullscreenIcon sx={{ fontSize: 16 }} />
+                  ) : (
+                    <OpenInFullIcon sx={{ fontSize: 16 }} />
+                  )}
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Save & close">
+                <IconButton size="small" sx={barIcon} onClick={closeCompose}>
+                  <CloseIcon sx={{ fontSize: 18 }} />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          </Box>
 
-          <Button
-            variant="outlined"
-            onClick={() => hook.setOpenAi(true)}
-            startIcon={<AutoAwesomeIcon sx={{ fontSize: 16, color: '#2563eb' }} />}
-            sx={{
-              borderColor: '#cbd5e1',
-              color: '#334155',
-              textTransform: 'none',
-              fontWeight: 600,
-              borderRadius: 2,
-              '&:hover': { borderColor: '#2563eb', backgroundColor: '#f8fafc' }
-            }}
-          >
-            AI Draft Assistant
-          </Button>
-        </Box>
+          {!minimized && (
+            <>
+              {/* Recipients + subject */}
+              <Box sx={{ flexShrink: 0 }}>
+                <FieldRow
+                  label="To"
+                  name="to"
+                  value={data.to || ''}
+                  onChange={onValueChange}
+                  placeholder="Recipients"
+                  autoFocus
+                  right={
+                    <Box sx={{ display: 'flex' }}>
+                      {!showCc && <LinkButton onClick={() => setShowCc(true)}>Cc</LinkButton>}
+                      {!showBcc && <LinkButton onClick={() => setShowBcc(true)}>Bcc</LinkButton>}
+                    </Box>
+                  }
+                />
+                {showCc && (
+                  <FieldRow label="Cc" name="cc" value={data.cc || ''} onChange={onValueChange} />
+                )}
+                {showBcc && (
+                  <FieldRow label="Bcc" name="bcc" value={data.bcc || ''} onChange={onValueChange} />
+                )}
+                <FieldRow
+                  name="subject"
+                  value={data.subject || ''}
+                  onChange={onValueChange}
+                  placeholder="Subject"
+                />
+              </Box>
 
-        <IconButton size="small" onClick={closeComposeClick} sx={{ color: "#94a3b8", '&:hover': { color: '#dc2626' } }}>
-          <DeleteOutlineOutlinedIcon fontSize="small" />
-        </IconButton>
-      </Footer>
+              {/* Message body */}
+              <Box
+                component="textarea"
+                name="body"
+                value={data.body || ''}
+                onChange={onValueChange}
+                placeholder="Write your message…"
+                sx={{
+                  flex: 1,
+                  minHeight: 0,
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  resize: 'none',
+                  border: 'none',
+                  outline: 'none',
+                  px: 2,
+                  py: 1.5,
+                  fontSize: 14.5,
+                  lineHeight: 1.65,
+                  color: '#1e293b',
+                  fontFamily: FONT,
+                  backgroundColor: '#ffffff',
+                }}
+              />
 
-      {/* AI Draft Assistant Modal */}
+              {sendError && (
+                <Typography
+                  sx={{ px: 2, py: 0.75, fontSize: 13, color: '#b91c1c', backgroundColor: '#fef2f2' }}
+                >
+                  {sendError}
+                </Typography>
+              )}
+
+              {/* Action bar */}
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  px: 2,
+                  py: 1.25,
+                  flexShrink: 0,
+                  borderTop: '1px solid #eef2f6',
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Button
+                    variant="contained"
+                    onClick={sendMail}
+                    disabled={!canSend}
+                    disableElevation
+                    endIcon={
+                      sending ? (
+                        <CircularProgress size={14} sx={{ color: 'inherit' }} />
+                      ) : (
+                        <SendIcon sx={{ fontSize: 16 }} />
+                      )
+                    }
+                    sx={{
+                      backgroundColor: '#2563eb',
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      borderRadius: '999px',
+                      px: 2.75,
+                      '&:hover': { backgroundColor: '#1d4ed8' },
+                    }}
+                  >
+                    {sending ? 'Sending' : 'Send'}
+                  </Button>
+
+                  <Tooltip title="Draft with AI">
+                    <Button
+                      onClick={() => hook.setOpenAi(true)}
+                      startIcon={<AutoAwesomeIcon sx={{ fontSize: 16 }} />}
+                      sx={{
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        color: '#2563eb',
+                        borderRadius: '999px',
+                        '&:hover': { backgroundColor: '#eff6ff' },
+                      }}
+                    >
+                      AI Assist
+                    </Button>
+                  </Tooltip>
+
+                  <Box sx={{ display: { xs: 'flex', sm: 'none' }, alignItems: 'center' }}>
+                    {saveState === 'saved' && <CheckIcon sx={{ fontSize: 16, color: '#16a34a' }} />}
+                  </Box>
+                </Box>
+
+                <Tooltip title={data.draftId ? 'Discard draft' : 'Discard'}>
+                  <IconButton
+                    size="small"
+                    onClick={discard}
+                    sx={{ color: '#94a3b8', '&:hover': { color: '#dc2626', backgroundColor: '#fef2f2' } }}
+                  >
+                    <DeleteOutlineOutlinedIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+            </>
+          )}
+        </Paper>
+      </Slide>
+
+      {/* AI Draft Assistant modal */}
       <Dialog
-        open={hook.openAi}
-        onClose={handleClose}
+        open={!!hook.openAi}
+        onClose={() => hook.setOpenAi(false)}
         PaperProps={{
           sx: {
             borderRadius: 3,
@@ -208,15 +478,15 @@ const Compose = ({ openDialog, setOpenDialog }) => {
             boxShadow: '0 20px 40px rgba(0,0,0,0.15)',
             border: '1px solid #e2e8f0',
             maxWidth: '600px',
-            width: '95%'
-          }
+            width: '95%',
+          },
         }}
       >
         <DialogContent sx={{ p: 2 }}>
           <Auto_email />
         </DialogContent>
       </Dialog>
-    </DialogContainer>
+    </>
   );
 };
 

@@ -88,13 +88,42 @@ const StyledBody = styled(motion.div)({
     },
 });
 
-const EmailBody = ({ email }) => {
-    const [allowImages, setAllowImages] = useState(false);
+const TRUSTED_KEY = 'mailwise_trusted_image_senders';
 
-    // Re-block images whenever a different email is shown
+const senderAddress = (sender) => {
+    const m = /<([^>]+)>/.exec(sender || '');
+    return (m ? m[1] : sender || '').trim().toLowerCase();
+};
+
+const readTrusted = () => {
+    try {
+        return JSON.parse(localStorage.getItem(TRUSTED_KEY)) || [];
+    } catch {
+        return [];
+    }
+};
+
+const EmailBody = ({ email }) => {
+    const address = senderAddress(email?.sender);
+    const [trusted, setTrusted] = useState(readTrusted);
+    const isTrusted = !!address && trusted.includes(address);
+    const [allowImages, setAllowImages] = useState(isTrusted);
+
+    // Trusted senders load automatically; everyone else is re-blocked per email
     useEffect(() => {
-        setAllowImages(false);
-    }, [email?.id, email?.body]);
+        setAllowImages(isTrusted);
+    }, [email?.id, email?.body, isTrusted]);
+
+    const trustSender = () => {
+        const next = [...new Set([...trusted, address])];
+        setTrusted(next);
+        try {
+            localStorage.setItem(TRUSTED_KEY, JSON.stringify(next));
+        } catch {
+            /* storage unavailable: trust applies for this session only */
+        }
+        setAllowImages(true);
+    };
 
     const { html, isHtml, blockedImages } = useMemo(
         () => formatEmailBody(email?.body, { allowImages }),
@@ -134,6 +163,23 @@ const EmailBody = ({ email }) => {
                     >
                         Load images
                     </button>
+                    {address && (
+                        <button
+                            type="button"
+                            onClick={trustSender}
+                            style={{
+                                border: 'none',
+                                background: 'none',
+                                color: '#2563eb',
+                                fontWeight: 500,
+                                cursor: 'pointer',
+                                textDecoration: 'underline',
+                                padding: 0,
+                            }}
+                        >
+                            Always load from {address}
+                        </button>
+                    )}
                 </div>
             )}
             <StyledBody

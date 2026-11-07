@@ -5,7 +5,7 @@
  * @param {Object} payload - Gmail message payload
  * @returns {string} Decoded email body
  */
-export function extractBody(payload) {
+export function extractBody(payload, { preferHtml = false } = {}) {
     if (!payload) return "";
 
     const decodeBase64 = (data) => {
@@ -32,10 +32,7 @@ export function extractBody(payload) {
         return null;
     };
 
-    const plainBody = findPlain(payload);
-    if (plainBody) return plainBody;
-
-    // 2. Second priority: look for text/html across parts
+    // 2. look for text/html across parts
     const findHtml = (part) => {
         if (part.mimeType === "text/html" && part.body?.data) {
             return decodeBase64(part.body.data);
@@ -48,6 +45,15 @@ export function extractBody(payload) {
         }
         return null;
     };
+
+    // Display callers want the rich version; AI callers want plain text first.
+    if (preferHtml) {
+        const html = findHtml(payload);
+        if (html) return html;
+    }
+
+    const plainBody = findPlain(payload);
+    if (plainBody) return plainBody;
 
     const htmlBody = findHtml(payload);
     if (htmlBody) return htmlBody;

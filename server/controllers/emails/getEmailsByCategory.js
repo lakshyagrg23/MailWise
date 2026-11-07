@@ -4,11 +4,17 @@ import prisma from '../../prisma.js';
 import { getAuthenticatedClient } from '../../services/googleAuthService.js';
 import { filterUnprocessedEmailIds, fetchRawEmailsConcurrently } from '../../services/gmailFetchService.js';
 import { processAndClassifyEmails } from '../../services/batchClassificationService.js';
+import { getSentEmails } from './getSentEmails.js';
+import { getDraftEmails } from './drafts.js';
 
 dotenv.config();
 
 export const getEmailsByCategory = async (req, res) => {
     const { category } = req.params;
+
+    // Sent mail is a live Gmail view, not a classified category
+    if (category.toLowerCase() === 'sent') return getSentEmails(req, res);
+    if (category.toLowerCase() === 'drafts') return getDraftEmails(req, res);
 
     // 1. Handle Demo Account
     if (req.user.isDemo) {
@@ -59,7 +65,8 @@ export const getEmailsByCategory = async (req, res) => {
         const listResponse = await gmail.users.messages.list({
             userId: 'me',
             maxResults: 20,
-            q: '-in:trash -in:draft'
+            // Sent mail lives in its own view; keep mail you sent to yourself (it also has INBOX)
+            q: '-in:trash -in:draft (-in:sent OR in:inbox)'
         });
         const messageIds = (listResponse.data.messages || []).map(m => m.id);
 
@@ -101,6 +108,11 @@ export const getEmailsByCategory = async (req, res) => {
 
         // 6. Query Stored Emails for the Requested Category from PostgreSQL
         const whereClause = { user_id: userId };
+        // Hide sent mail that was ingested before Sent got its own view
+        const ownAddress = userInfo?.email || authUser?.email;
+        if (ownAddress) {
+            whereClause.NOT = { sender: { contains: ownAddress, mode: 'insensitive' } };
+        }
         if (category !== "All") {
             whereClause.category = { equals: category, mode: 'insensitive' };
         }

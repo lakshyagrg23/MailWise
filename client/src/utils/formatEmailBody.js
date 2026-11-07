@@ -6,7 +6,31 @@ const SAFE_LINK = /^(?:https?:|mailto:)/i;
 const SAFE_DATA_IMAGE = /^data:image\/(?:png|gif|jpe?g|webp);base64,[a-z0-9+/=\s]+$/i;
 const REMOTE_IMAGE = /^(?:https?:)?\/\//i;
 
-export const escapeHtml = (s) =>
+// Purely presentational properties; no positioning, no url()/expression values.
+const SAFE_STYLE_PROPS = new Set([
+    'color', 'background-color', 'font-family', 'font-size', 'font-weight', 'font-style',
+    'text-align', 'text-decoration', 'line-height', 'letter-spacing', 'vertical-align',
+    'margin', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+    'padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+    'border', 'border-top', 'border-right', 'border-bottom', 'border-left',
+    'border-color', 'border-style', 'border-width', 'border-radius', 'border-collapse',
+    'width', 'max-width', 'min-width', 'height', 'display', 'white-space',
+]);
+
+const filterStyle = (style) =>
+    style
+        .split(';')
+        .map((decl) => decl.trim())
+        .filter((decl) => {
+            const idx = decl.indexOf(':');
+            if (idx < 1) return false;
+            const prop = decl.slice(0, idx).trim().toLowerCase();
+            const value = decl.slice(idx + 1).toLowerCase();
+            return SAFE_STYLE_PROPS.has(prop) && !/url\s*\(|expression|javascript:|@import|\\/.test(value);
+        })
+        .join('; ');
+
+export const escapeHtml =(s) =>
     s
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -25,6 +49,12 @@ export const createFormatter = (purify) => {
 
     purify.addHook('afterSanitizeAttributes', (node) => {
         const tag = node.nodeName ? node.nodeName.toLowerCase() : '';
+
+        if (node.hasAttribute && node.hasAttribute('style')) {
+            const safe = filterStyle(node.getAttribute('style'));
+            if (safe) node.setAttribute('style', safe);
+            else node.removeAttribute('style');
+        }
 
         if (tag === 'a') {
             const href = node.getAttribute('href');
@@ -52,7 +82,7 @@ export const createFormatter = (purify) => {
     const config = {
         USE_PROFILES: { html: true },
         FORBID_TAGS: ['style', 'form', 'iframe', 'object', 'embed', 'script', 'link', 'meta', 'base', 'video', 'audio', 'source', 'svg', 'math', 'input', 'button', 'textarea', 'select'],
-        FORBID_ATTR: ['style', 'srcset', 'background', 'poster', 'action', 'formaction', 'onerror', 'onload', 'onclick', 'onmouseover'],
+        FORBID_ATTR: ['srcset', 'background', 'poster', 'action', 'formaction', 'onerror', 'onload', 'onclick', 'onmouseover'],
         ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto):|data:image\/(?:png|gif|jpe?g|webp);base64,)/i,
         ALLOW_DATA_ATTR: false,
     };

@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import dotenv from 'dotenv';
 import { asyncPool } from '../utils/asyncPool.js';
-import { cleanEmailForAI } from '../utils/emailCleaner.js';
+import { cleanEmailForAI, decodeHtmlEntities } from '../utils/emailCleaner.js';
 import { executeWithRetry } from '../utils/retryHelper.js';
 
 dotenv.config();
@@ -17,7 +17,15 @@ const MAX_BATCH_TOKENS = 8000;
  * @param {number} [maxChars=140]
  * @returns {string}
  */
-export function generateBodySnippet(body, maxChars = 140) {
+export function generateBodySnippet(body, maxChars = 140, gmailSnippet = '') {
+    // Gmail's own snippet is already clean text (entity-encoded); prefer it over our HTML stripping.
+    const fromGmail = decodeHtmlEntities(gmailSnippet || '')
+        .replace(/[​-‏͏­﻿]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    if (fromGmail) {
+        return fromGmail.length > maxChars ? fromGmail.slice(0, maxChars) + '...' : fromGmail;
+    }
     if (!body || body.trim().length === 0) {
         return "No preview available.";
     }
@@ -57,7 +65,7 @@ export function splitSystemAndAiEmails(emails) {
                 subject: email.subject || "No Subject",
                 sender: email.sender || "Unknown Sender",
                 category: "Spam",
-                emailsummary: generateBodySnippet(email.body),
+                emailsummary: generateBodySnippet(email.body, 140, email.snippet),
                 attachname: email.attachName || null,
                 received_date: email.receivedAt ? new Date(email.receivedAt) : new Date(),
                 update: 1n
@@ -68,7 +76,7 @@ export function splitSystemAndAiEmails(emails) {
                 subject: email.subject || "No Subject",
                 sender: email.sender || "Unknown Sender",
                 category: "Promotions",
-                emailsummary: generateBodySnippet(email.body),
+                emailsummary: generateBodySnippet(email.body, 140, email.snippet),
                 attachname: email.attachName || null,
                 received_date: email.receivedAt ? new Date(email.receivedAt) : new Date(),
                 update: 1n
@@ -79,7 +87,7 @@ export function splitSystemAndAiEmails(emails) {
                 subject: email.subject || "No Subject",
                 sender: email.sender || "Unknown Sender",
                 category: "Social",
-                emailsummary: generateBodySnippet(email.body),
+                emailsummary: generateBodySnippet(email.body, 140, email.snippet),
                 attachname: email.attachName || null,
                 received_date: email.receivedAt ? new Date(email.receivedAt) : new Date(),
                 update: 1n
@@ -201,7 +209,7 @@ export function createFallbackEmailRecord(email, defaultCategory) {
         subject: email.subject || "No Subject",
         sender: email.sender || "Unknown Sender",
         category: defaultCategory,
-        emailsummary: generateBodySnippet(email.body),
+        emailsummary: generateBodySnippet(email.body, 140, email.snippet),
         attachname: email.attachName || null,
         received_date: email.receivedAt ? new Date(email.receivedAt) : new Date(),
         update: 1n
@@ -281,7 +289,7 @@ export async function classifySingleBatch(batch, categories, batchIndex = 0) {
             subject: email.subject || "No Subject",
             sender: email.sender || "Unknown Sender",
             category: category,
-            emailsummary: generateBodySnippet(email.body),
+            emailsummary: generateBodySnippet(email.body, 140, email.snippet),
             attachname: email.attachName || null,
             received_date: email.receivedAt ? new Date(email.receivedAt) : new Date(),
             update: 1n

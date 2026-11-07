@@ -4,6 +4,7 @@ import {
   Box,
   List,
   IconButton,
+  Button,
   Typography,
   Alert,
   CircularProgress,
@@ -12,12 +13,14 @@ import {
   FormControl,
   Tooltip
 } from "@mui/material";
+import RefreshIcon from '@mui/icons-material/Refresh';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import DisplayEmail from "./DisplayEmail";
 import NoMails from "./error/NoMails";
 import { emailContext } from "../App";
+import fetchEmails from "../api/api";
 import { motion } from "framer-motion";
 
 const Email = () => {
@@ -28,8 +31,51 @@ const Email = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
+  // Sent and Drafts are live Gmail views (not part of the classified list), loaded on demand
+  const liveView = ["sent", "drafts"].includes(emailhook.category?.toLowerCase())
+    ? emailhook.category
+    : null;
+  const [liveEmails, setLiveEmails] = useState([]);
+  const [liveLoading, setLiveLoading] = useState(false);
+  const [liveNext, setLiveNext] = useState(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const loadMore = async () => {
+    if (!liveNext || loadingMore) return;
+    setLoadingMore(true);
+    const res = await fetchEmails(liveView, liveNext);
+    setLiveEmails((prev) => {
+      const seen = new Set(prev.map((e) => e.email_id));
+      return [...prev, ...(res.emails || []).filter((e) => !seen.has(e.email_id))];
+    });
+    setLiveNext(res.nextPageToken || null);
+    setLoadingMore(false);
+  };
+
+  useEffect(() => {
+    if (!liveView) return;
+    let cancelled = false;
+    setLiveEmails([]);
+    setLiveNext(null);
+    setLiveLoading(true);
+    fetchEmails(liveView)
+      .then((res) => {
+        if (cancelled) return;
+        setLiveEmails(res.emails || []);
+        setLiveNext(res.nextPageToken || null);
+      })
+      .finally(() => {
+        if (!cancelled) setLiveLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // draftsVersion bumps whenever a draft is saved/deleted/sent so the list refreshes
+  }, [liveView, emailhook.draftsVersion]);
+
   // Filter emails by active category
   const filteredEmails = useMemo(() => {
+    if (liveView) return liveEmails;
     if (!Array.isArray(emailhook.emails)) return [];
 
     let list = emailhook.category === "All"
@@ -37,7 +83,7 @@ const Email = () => {
       : emailhook.emails.filter((email) => email.category?.toLowerCase() === emailhook.category?.toLowerCase());
 
     return [...list].sort((a, b) => new Date(b.received_date || 0) - new Date(a.received_date || 0));
-  }, [emailhook.emails, emailhook.category]);
+  }, [emailhook.emails, emailhook.category, liveView, liveEmails]);
 
   // Reset to Page 1 when category or email list changes
   useEffect(() => {
@@ -124,8 +170,26 @@ const Email = () => {
             gap: 1.5
           }}
         >
-          {/* Left: Category Title & Count */}
+          {/* Left: Refresh, Category Title & Count */}
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+            <Tooltip title="Refresh">
+              <span>
+                <IconButton
+                  size="small"
+                  onClick={emailhook.refreshMail}
+                  disabled={emailhook.refreshing}
+                  sx={{ color: "#475569", "&:hover": { backgroundColor: "#f1f5f9" } }}
+                >
+                  <RefreshIcon
+                    fontSize="small"
+                    sx={{
+                      animation: emailhook.refreshing ? "mwspin 0.9s linear infinite" : "none",
+                      "@keyframes mwspin": { to: { transform: "rotate(360deg)" } },
+                    }}
+                  />
+                </IconButton>
+              </span>
+            </Tooltip>
             <Typography sx={{ fontWeight: 700, fontSize: "16px", color: "#0f172a" }}>
               {emailhook.category || "All"}
             </Typography>
@@ -209,7 +273,7 @@ const Email = () => {
         </Box>
 
         {/* Content State: Loading, Email Rows, or Empty State */}
-        {!emailhook.loaded ? (
+        {(liveView ? liveLoading : !emailhook.loaded) ? (
           <Box
             sx={{
               display: "flex",
@@ -234,6 +298,19 @@ const Email = () => {
         ) : (
           <Box sx={{ py: 8 }}>
             <NoMails />
+          </Box>
+        )}
+
+        {/* Sent/Drafts: fetch the next page from Gmail */}
+        {liveView && liveNext && (
+          <Box sx={{ display: "flex", justifyContent: "center", py: 1.5, borderTop: "1px solid #f1f5f9" }}>
+            <Button
+              onClick={loadMore}
+              disabled={loadingMore}
+              sx={{ textTransform: "none", fontWeight: 600, color: "#2563eb" }}
+            >
+              {loadingMore ? "Loading..." : "Load more"}
+            </Button>
           </Box>
         )}
 

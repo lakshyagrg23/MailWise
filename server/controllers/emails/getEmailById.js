@@ -34,7 +34,7 @@ export const getEmailById = async (req, res) => {
         const headers = msg.data.payload?.headers || [];
         const subject = headers.find((h) => h.name === "Subject")?.value || "No Subject";
         const sender = headers.find((h) => h.name === "From")?.value || "Unknown Sender";
-        const body = extractBody(msg.data.payload);
+        const body = extractBody(msg.data.payload, { preferHtml: true });
         const receivedAt = new Date(parseInt(msg.data.internalDate)).toISOString();
 
         let attachments = [];

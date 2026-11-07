@@ -115,6 +115,7 @@ export async function fetchRawEmailsConcurrently(messageIds, gmailClient, concur
                 subject,
                 sender,
                 body: cleanedBody,
+                snippet: msg.data.snippet || "",
                 attachName,
                 labelIds,
                 receivedAt

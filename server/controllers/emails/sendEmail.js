@@ -47,6 +47,16 @@ export const sendEmail = async (req, res) => {
             }
         });
 
+        // Sending a composed draft: remove the now-redundant draft (best effort)
+        const draftId = req.body?.draftId;
+        if (typeof draftId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(draftId)) {
+            try {
+                await gmail.users.drafts.delete({ userId: 'me', id: draftId });
+            } catch (draftErr) {
+                console.warn('Could not delete draft after send:', draftErr.message);
+            }
+        }
+
         return res.status(200).json({ message: 'Email sent successfully', response: "success" });
     } catch (error) {
         console.error('Error sending email:', error);

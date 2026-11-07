@@ -19,7 +19,8 @@ import SearchIcon from "@mui/icons-material/Search";
 import CloseIcon from "@mui/icons-material/Close";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import { emailContext } from "../App";
-import { Refresh } from "./Refresh";
+import { useNavigate } from "react-router-dom";
+import { routes } from "../routes/route";
 
 const StyleAppBar = styled(AppBar)`
     background-color: #ffffff;
@@ -74,6 +75,7 @@ const Header = ({ toggleDrawer }) => {
     const [showSearchResults, setShowSearchResults] = useState(false);
     const [selectedFilterCategory, setSelectedFilterCategory] = useState("All");
     const searchRef = useRef(null);
+    const navigate = useNavigate();
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -84,6 +86,15 @@ const Header = ({ toggleDrawer }) => {
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
+
+    // Logo: back to the All Mail list (same route the sidebar's "All" entry uses) and check for new mail
+    const goHome = () => {
+        emailhook.setCategory("All");
+        setSearchQuery("");
+        setShowSearchResults(false);
+        navigate(`${routes.email.path}/All`);
+        emailhook.refreshMail();
+    };
 
     const handleClearSearch = () => {
         setSearchQuery("");
@@ -104,7 +115,7 @@ const Header = ({ toggleDrawer }) => {
                         <MenuIcon fontSize="small" />
                     </IconButton>
 
-                    <BrandName onClick={Refresh} aria-label="MailWise Home">
+                    <BrandName onClick={goHome} aria-label="MailWise Home" role="link">
                         Mail<span>Wise</span>
                     </BrandName>
                 </Box>
@@ -175,10 +186,11 @@ const Header = ({ toggleDrawer }) => {
 
                 {/* Right: Refresh & Profile Menu */}
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: { xs: 'auto', md: '220px' }, justifyContent: 'flex-end' }}>
-                    <Tooltip title="Sync / Refresh">
+                    <Tooltip title="Check for new mail">
                         <IconButton
                             size="small"
-                            onClick={Refresh}
+                            onClick={emailhook.refreshMail}
+                            disabled={emailhook.refreshing}
                             sx={{
                                 color: '#475569',
                                 border: '1px solid #e2e8f0',
@@ -187,7 +199,13 @@ const Header = ({ toggleDrawer }) => {
                                 '&:hover': { backgroundColor: '#f1f5f9', color: '#2563eb' }
                             }}
                         >
-                            <RefreshIcon sx={{ fontSize: 18 }} />
+                            <RefreshIcon
+                                sx={{
+                                    fontSize: 18,
+                                    animation: emailhook.refreshing ? 'mwspin 0.9s linear infinite' : 'none',
+                                    '@keyframes mwspin': { to: { transform: 'rotate(360deg)' } },
+                                }}
+                            />
                         </IconButton>
                     </Tooltip>
 

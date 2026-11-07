@@ -92,8 +92,9 @@ const wrap76 = (s) => s.replace(/.{1,76}/g, '$&\r\n').trimEnd();
  * `from` must be the authenticated user's email (never request data).
  * Throws ValidationError (status 400) on bad input.
  */
-export function buildRawMessage({ from, to, subject, body, reqBody }) {
-    const toList = validateRecipients(to, 'to', { required: true });
+export function buildRawMessage({ from, to, subject, body, reqBody, draft = false }) {
+    // A draft may be saved half-written: recipients are optional (but validated when present)
+    const toList = validateRecipients(to, 'to', { required: !draft });
     const ccList = validateRecipients(extractExtra(reqBody, 'cc'), 'cc');
     const bccList = validateRecipients(extractExtra(reqBody, 'bcc'), 'bcc');
     if (toList.length + ccList.length + bccList.length > MAX_RECIPIENTS) {
@@ -120,18 +121,20 @@ export function buildRawMessage({ from, to, subject, body, reqBody }) {
 
     const headers = [];
     if (fromAddr) headers.push(`From: ${fromAddr}`);
-    headers.push(`To: ${toList.join(',\r\n ')}`);
+    if (toList.length) headers.push(`To: ${toList.join(',\r\n ')}`);
     if (ccList.length) headers.push(`Cc: ${ccList.join(',\r\n ')}`);
     if (bccList.length) headers.push(`Bcc: ${bccList.join(',\r\n ')}`);
     headers.push(
         `Date: ${new Date().toUTCString()}`,
         'MIME-Version: 1.0',
-        'Content-Type: text/html; charset="UTF-8"',
+        // The composer is a plain textarea: send it as text/plain so line breaks survive
+        'Content-Type: text/plain; charset="UTF-8"',
         'Content-Transfer-Encoding: base64',
         `Subject: ${subj ? encodeWords(subj) : ''}`
     );
 
-    const message = `${headers.join('\r\n')}\r\n\r\n${wrap76(b64(html))}\r\n`;
+    const text = html.replace(/\r\n|\r|\n/g, '\r\n');
+    const message = `${headers.join('\r\n')}\r\n\r\n${wrap76(b64(text))}\r\n`;
     return Buffer.from(message, 'utf-8')
         .toString('base64')
         .replace(/\+/g, '-')

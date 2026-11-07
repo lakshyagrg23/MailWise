@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
+import { emailContext } from '../App';
 import { Typography, Box, styled, Tooltip, Avatar, IconButton } from "@mui/material";
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
@@ -108,9 +109,26 @@ const DisplayEmail = ({ email }) => {
   const [summaryText, setSummaryText] = useState(initialAiSummary);
   const [loadingSummary, setLoadingSummary] = useState(false);
 
-  const senderName = email.sender?.includes('<')
-    ? email.sender.split('<')[0].replace(/['"]/g, '').trim()
-    : email.sender || 'Unknown';
+  const hook = useContext(emailContext);
+  const isDraft = !!email.is_draft;
+  const isSent = !!email.is_sent || isDraft;
+  // For sent/draft mail `sender` holds the recipient(s): show the first one's name with a "To:" prefix
+  const firstParty = (isSent ? (email.sender || '').split(',')[0] : email.sender) || '';
+  const partyName = firstParty.includes('<')
+    ? firstParty.split('<')[0].replace(/['"]/g, '').trim() || firstParty.replace(/[<>]/g, '').trim()
+    : firstParty || 'Unknown';
+  const senderName = isDraft ? `Draft: ${partyName}` : isSent ? `To: ${partyName}` : partyName;
+
+  const openDraft = async () => {
+    try {
+      const { data } = await http.get(`/email/drafts/${email.draft_id}`);
+      hook.setData(data);
+      hook.setComposeOpen(true);
+    } catch (err) {
+      console.error('Failed to open draft:', err);
+    }
+  };
+  const avatarLetter = partyName[0]?.toUpperCase() || 'U';
 
   const categoryColor = getRandomColor(email.category || 'Miscellaneous');
   const dateDisplay = formatEmailDate(email.received_date);
@@ -148,6 +166,7 @@ const DisplayEmail = ({ email }) => {
     <Box sx={{ borderBottom: '1px solid #f1f5f9' }}>
       <EmailRow
         onClick={() => {
+          if (isDraft) return openDraft();
           navigate(routes.view.path, { state: { email } });
         }}
         role="button"
@@ -166,7 +185,7 @@ const DisplayEmail = ({ email }) => {
               userSelect: 'none',
             }}
           >
-            {senderName[0]?.toUpperCase() || 'U'}
+            {avatarLetter}
           </Avatar>
           <Tooltip title={senderName} placement="top">
             <Typography
@@ -225,8 +244,8 @@ const DisplayEmail = ({ email }) => {
 
         {/* Right: Summary Trigger, Attachment & Date */}
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1.5, minWidth: 200 }}>
-          {/* Quick AI Summary Button */}
-          <Tooltip title={showSummary ? "Hide Summary" : "View AI Summary"}>
+          {/* Quick AI Summary Button (sent mail has no stored row to cache a summary in) */}
+          {!isSent && <Tooltip title={showSummary ? "Hide Summary" : "View AI Summary"}>
             <IconButton
               size="small"
               onClick={handleFetchSummary}
@@ -241,7 +260,7 @@ const DisplayEmail = ({ email }) => {
             >
               <AutoAwesomeIcon sx={{ fontSize: 16 }} />
             </IconButton>
-          </Tooltip>
+          </Tooltip>}
 
           {/* Attachment Badge */}
           {email.attachname && (

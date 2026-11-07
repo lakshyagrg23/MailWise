@@ -52,6 +52,9 @@ const App = () => {
   const [mailsReceived, setMailsReceived] = useState(false);
   const [message, setMessage] = useState("");
   const [update, setUpdate] = useState(1);
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [draftsVersion, setDraftsVersion] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
 
   const resetSession = () => {
     setAuthenticated(false);
@@ -112,6 +115,24 @@ const App = () => {
     setLoaded(true);
   };
 
+  // Gmail-style refresh: pull new mail in place (no page reload). The inbox list always holds
+  // "All" and is filtered client-side; Sent/Drafts refetch through the draftsVersion bump.
+  const refreshMail = async () => {
+    if (!authenticated || refreshing) return;
+    setRefreshing(true);
+    try {
+      const result = await fetchEmails("All");
+      if (!result.error) {
+        setEmails(Array.isArray(result.emails) ? result.emails : []);
+        if (result.email) setEmail(result.email);
+        if (result.pic) setPicture(result.pic);
+      }
+      setDraftsVersion((v) => v + 1);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   return (
     <Suspense fallback={<SuspenseLoader />}>
       <emailContext.Provider value={{
@@ -122,7 +143,9 @@ const App = () => {
         data, setData, openAi, setOpenAi, email, setEmail, picture,
         setPicture, date, setDate, newMailsLoaded, setNewMailsLoaded,
         mailsReceived, setMailsReceived, message, setMessage,
-        update, setUpdate, fetchEmailData
+        update, setUpdate, fetchEmailData,
+        composeOpen, setComposeOpen, draftsVersion, setDraftsVersion,
+        refreshMail, refreshing
       }}>
         {checkingSession ? (
           <SuspenseLoader />
