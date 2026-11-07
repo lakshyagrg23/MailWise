@@ -12,7 +12,9 @@ export const url = (oauth2Client) => (req, res) => {
             "https://www.googleapis.com/auth/gmail.readonly",
             'https://www.googleapis.com/auth/gmail.send',
             // Needed to create/update/delete drafts (readonly can list/read them but not write)
-            'https://www.googleapis.com/auth/gmail.compose'
+            'https://www.googleapis.com/auth/gmail.compose',
+            // Needed to add/remove the UNREAD label so read state stays in sync with Gmail
+            'https://www.googleapis.com/auth/gmail.modify'
         ],
     });
     res.json({ authUrl });

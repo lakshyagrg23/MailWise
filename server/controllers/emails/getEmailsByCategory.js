@@ -70,6 +70,34 @@ export const getEmailsByCategory = async (req, res) => {
         });
         const messageIds = (listResponse.data.messages || []).map(m => m.id);
 
+        // 3b. Reconcile read/starred state with Gmail for the messages in this window, so changes
+        // made in Gmail itself show correctly here. New IDs are not stored yet: their state is
+        // set from labelIds at ingestion below.
+        try {
+            const base = '-in:trash -in:draft (-in:sent OR in:inbox)';
+            const [unreadList, starredList] = await Promise.all([
+                gmail.users.messages.list({ userId: 'me', maxResults: 100, q: `is:unread ${base}` }),
+                gmail.users.messages.list({ userId: 'me', maxResults: 100, q: `is:starred ${base}` })
+            ]);
+            const unreadSet = new Set((unreadList.data.messages || []).map(m => m.id));
+            const starredSet = new Set((starredList.data.messages || []).map(m => m.id));
+
+            const flip = (field, set, stateWhenInSet) =>
+                Promise.all([true, false].map(inSet => {
+                    const ids = messageIds.filter(id => set.has(id) === inSet);
+                    const value = inSet ? stateWhenInSet : !stateWhenInSet;
+                    return prisma.emailMetadata.updateMany({
+                        where: { user_id: userId, email_id: { in: ids }, [field]: !value },
+                        data: { [field]: value }
+                    });
+                }));
+
+            await flip('is_read', unreadSet, false); // in the unread list => is_read false
+            await flip('is_starred', starredSet, true);
+        } catch (syncErr) {
+            console.warn("[getEmailsByCategory] Read/star sync skipped:", syncErr.message);
+        }
+
         // 4. Delta Filtering: Identify only brand-new, unprocessed emails
         const newIds = await filterUnprocessedEmailIds(messageIds, userId);
 
@@ -91,8 +119,17 @@ export const getEmailsByCategory = async (req, res) => {
                 const classifiedEmails = await processAndClassifyEmails(rawEmails, categories, 2);
 
                 // Bulk insert all classified emails into PostgreSQL
+                // Gmail's UNREAD label at ingestion time becomes our is_read flag
+                const unreadIds = new Set(
+                    rawEmails.filter(e => (e.labelIds || []).includes('UNREAD')).map(e => e.email_id)
+                );
+                const starredIds = new Set(
+                    rawEmails.filter(e => (e.labelIds || []).includes('STARRED')).map(e => e.email_id)
+                );
                 const recordsToInsert = classifiedEmails.map(record => ({
                     ...record,
+                    is_read: !unreadIds.has(record.email_id),
+                    is_starred: starredIds.has(record.email_id),
                     user_id: userId
                 }));
 

@@ -35,6 +35,10 @@ model EmailMetadata {
   emailsummary  String?
   received_date DateTime?
   update        BigInt?   @default(1)
+  // Existing rows default to read; ingestion sets false when Gmail flags the message UNREAD
+  is_read       Boolean   @default(true)
+  // Mirrors Gmail's STARRED label
+  is_starred    Boolean   @default(false)
 
   user          User?     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 

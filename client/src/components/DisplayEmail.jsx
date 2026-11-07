@@ -2,6 +2,10 @@ import React, { useState, useContext } from 'react';
 import { emailContext } from '../App';
 import { Typography, Box, styled, Tooltip, Avatar, IconButton } from "@mui/material";
 import AttachFileIcon from '@mui/icons-material/AttachFile';
+import StarRoundedIcon from '@mui/icons-material/StarRounded';
+import StarBorderRoundedIcon from '@mui/icons-material/StarBorderRounded';
+import MarkEmailReadOutlinedIcon from '@mui/icons-material/MarkEmailReadOutlined';
+import MarkEmailUnreadOutlinedIcon from '@mui/icons-material/MarkEmailUnreadOutlined';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import CloseIcon from '@mui/icons-material/Close';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -119,6 +123,52 @@ const DisplayEmail = ({ email }) => {
     : firstParty || 'Unknown';
   const senderName = isDraft ? `Draft: ${partyName}` : isSent ? `To: ${partyName}` : partyName;
 
+  // Only inbox rows carry is_read; sent/draft rows never look unread
+  const isUnread = email.is_read === false;
+
+  const isStarred = !!email.is_starred;
+
+  // Optimistic flag update (read / starred), persisted in the background; reverts on failure
+  const patchEmail = (patch) =>
+    hook.setEmails((prev) =>
+      prev.map((e) => (e.email_id === email.email_id ? { ...e, ...patch } : e))
+    );
+
+  const setFlag = (url, body, patch, revert) => {
+    patchEmail(patch);
+    http.post(url, body).catch((err) => {
+      console.error('Failed to persist email state:', err);
+      patchEmail(revert);
+    });
+  };
+
+  // Opening an email marks it read
+  const markAsRead = () => {
+    if (!isUnread) return;
+    setFlag(`/email/read/${email.email_id}`, { read: true }, { is_read: true }, { is_read: false });
+  };
+
+  const toggleRead = (e) => {
+    e.stopPropagation();
+    const read = isUnread; // unread -> read, read -> unread
+    setFlag(
+      `/email/read/${email.email_id}`,
+      { read },
+      { is_read: read },
+      { is_read: !read }
+    );
+  };
+
+  const toggleStar = (e) => {
+    e.stopPropagation();
+    setFlag(
+      `/email/star/${email.email_id}`,
+      { starred: !isStarred },
+      { is_starred: !isStarred },
+      { is_starred: isStarred }
+    );
+  };
+
   const openDraft = async () => {
     try {
       const { data } = await http.get(`/email/drafts/${email.draft_id}`);
@@ -167,13 +217,30 @@ const DisplayEmail = ({ email }) => {
       <EmailRow
         onClick={() => {
           if (isDraft) return openDraft();
-          navigate(routes.view.path, { state: { email } });
+          markAsRead();
+          navigate(routes.view.path, { state: { email: { ...email, is_read: true } } });
         }}
         role="button"
         tabIndex={0}
+        // Read mail is tinted (like Gmail); unread stays white with a blue marker
+        sx={{
+          backgroundColor: isUnread ? '#ffffff' : '#f8fafc',
+          boxShadow: isUnread ? 'inset 3px 0 0 #2563eb' : 'none',
+        }}
       >
         {/* Left: Avatar & Sender Name */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: 220, minWidth: 200, overflow: 'hidden' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: 250, minWidth: 230, overflow: 'hidden' }}>
+          {!isSent && (
+            <Tooltip title={isStarred ? 'Unstar' : 'Star'}>
+              <IconButton
+                size="small"
+                onClick={toggleStar}
+                sx={{ p: 0.5, color: isStarred ? '#f59e0b' : '#cbd5e1', '&:hover': { color: '#f59e0b' } }}
+              >
+                {isStarred ? <StarRoundedIcon sx={{ fontSize: 20 }} /> : <StarBorderRoundedIcon sx={{ fontSize: 20 }} />}
+              </IconButton>
+            </Tooltip>
+          )}
           <Avatar
             sx={{
               width: 32,
@@ -190,7 +257,7 @@ const DisplayEmail = ({ email }) => {
           <Tooltip title={senderName} placement="top">
             <Typography
               sx={{
-                fontWeight: 600,
+                fontWeight: isUnread ? 700 : 500,
                 fontSize: '14px',
                 color: '#1e293b',
                 whiteSpace: 'nowrap',
@@ -214,7 +281,7 @@ const DisplayEmail = ({ email }) => {
             <Typography
               component="span"
               sx={{
-                fontWeight: 600,
+                fontWeight: isUnread ? 700 : 500,
                 fontSize: '14px',
                 color: '#0f172a',
                 whiteSpace: 'nowrap',
@@ -244,6 +311,19 @@ const DisplayEmail = ({ email }) => {
 
         {/* Right: Summary Trigger, Attachment & Date */}
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1.5, minWidth: 200 }}>
+          {/* Mark as read / unread (inbox rows only) */}
+          {!isSent && (
+            <Tooltip title={isUnread ? 'Mark as read' : 'Mark as unread'}>
+              <IconButton
+                size="small"
+                onClick={toggleRead}
+                sx={{ color: '#94a3b8', '&:hover': { color: '#2563eb', backgroundColor: '#f1f5f9' } }}
+              >
+                {isUnread ? <MarkEmailReadOutlinedIcon sx={{ fontSize: 18 }} /> : <MarkEmailUnreadOutlinedIcon sx={{ fontSize: 18 }} />}
+              </IconButton>
+            </Tooltip>
+          )}
+
           {/* Quick AI Summary Button (sent mail has no stored row to cache a summary in) */}
           {!isSent && <Tooltip title={showSummary ? "Hide Summary" : "View AI Summary"}>
             <IconButton

@@ -13,6 +13,7 @@ import {
 import { CreateOutlined } from "@mui/icons-material";
 import TuneIcon from "@mui/icons-material/Tune";
 import InboxOutlinedIcon from "@mui/icons-material/InboxOutlined";
+import StarBorderRoundedIcon from "@mui/icons-material/StarBorderRounded";
 import SendOutlinedIcon from "@mui/icons-material/SendOutlined";
 import EditNoteOutlinedIcon from "@mui/icons-material/EditNoteOutlined";
 import PushPinIcon from "@mui/icons-material/PushPin";
@@ -32,7 +33,7 @@ import http from "../api/http";
 // Gmail-derived buckets: low priority, grouped and collapsed by default
 const FILTERED = ["Promotions", "Social", "Spam"];
 // Mailboxes (not categories) get their own always-visible group
-const MAILBOXES = ["all", "sent", "drafts"];
+const MAILBOXES = ["all", "starred", "sent", "drafts"];
 // How many categories stay visible before the rest fold under "N more"
 const VISIBLE_LIMIT = 5;
 const PREFS_KEY = "mailwise_sidebar_v1";
@@ -112,7 +113,7 @@ const NavItem = ({
           </Tooltip>
         )}
         {count > 0 && (
-          <Typography sx={{ fontSize: "12px", fontWeight: 600, color: active ? "#2563eb" : "#94a3b8" }}>
+          <Typography sx={{ fontSize: "12px", fontWeight: 700, color: "#2563eb" }}>
             {count}
           </Typography>
         )}
@@ -175,6 +176,16 @@ const SideBarContent = () => {
     if (categoryName === "All") return categoryHook.emails.length;
     return categoryHook.emails.filter(
       (email) => email.category?.toLowerCase() === categoryName?.toLowerCase()
+    ).length;
+  };
+
+  // Sidebar badges show unread mail (is_read === false), not totals
+  const getUnreadCount = (categoryName) => {
+    if (!categoryHook.emails || categoryHook.emails.length === 0) return 0;
+    return categoryHook.emails.filter(
+      (email) =>
+        email.is_read === false &&
+        (categoryName === "All" || email.category?.toLowerCase() === categoryName?.toLowerCase())
     ).length;
   };
 
@@ -256,7 +267,7 @@ const SideBarContent = () => {
       to={`${routes.email.path}/${name}`}
       label={name}
       color={getRandomColor(name)}
-      count={getCategoryCount(name)}
+      count={getUnreadCount(name)}
       active={activeName === name.toLowerCase()}
       onClick={() => openCategory(name)}
       pinned={prefs.pinned.includes(name)}
@@ -264,7 +275,7 @@ const SideBarContent = () => {
     />
   );
 
-  const filteredTotal = FILTERED.reduce((sum, n) => sum + getCategoryCount(n), 0);
+  const filteredTotal = FILTERED.reduce((sum, n) => sum + getUnreadCount(n), 0);
   const filteredHasActive = FILTERED.some((n) => n.toLowerCase() === activeName);
   const filteredOpen = prefs.filteredOpen || filteredHasActive;
   const moreOpen = prefs.moreOpen;
@@ -309,9 +320,16 @@ const SideBarContent = () => {
             to={`${routes.email.path}/All`}
             label="Inbox"
             icon={<InboxOutlinedIcon />}
-            count={getCategoryCount("All")}
+            count={getUnreadCount("All")}
             active={activeName === "all"}
             onClick={() => categoryHook.setCategory("All")}
+          />
+          <NavItem
+            to={`${routes.email.path}/Starred`}
+            label="Starred"
+            icon={<StarBorderRoundedIcon />}
+            active={activeName === "starred"}
+            onClick={() => categoryHook.setCategory("Starred")}
           />
           <NavItem
             to={`${routes.email.path}/Sent`}
@@ -391,7 +409,7 @@ const SideBarContent = () => {
                 to={`${routes.email.path}/${name}`}
                 label={name}
                 color={getRandomColor(name)}
-                count={getCategoryCount(name)}
+                count={getUnreadCount(name)}
                 active={activeName === name.toLowerCase()}
                 muted
                 onClick={() => openCategory(name)}

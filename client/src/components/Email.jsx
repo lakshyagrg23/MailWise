@@ -78,9 +78,13 @@ const Email = () => {
     if (liveView) return liveEmails;
     if (!Array.isArray(emailhook.emails)) return [];
 
-    let list = emailhook.category === "All"
+    const cat = emailhook.category?.toLowerCase();
+    // "Starred" is a cross-category view over DB-backed rows, not a category
+    let list = cat === "all"
       ? emailhook.emails
-      : emailhook.emails.filter((email) => email.category?.toLowerCase() === emailhook.category?.toLowerCase());
+      : cat === "starred"
+        ? emailhook.emails.filter((email) => email.is_starred)
+        : emailhook.emails.filter((email) => email.category?.toLowerCase() === cat);
 
     return [...list].sort((a, b) => new Date(b.received_date || 0) - new Date(a.received_date || 0));
   }, [emailhook.emails, emailhook.category, liveView, liveEmails]);
