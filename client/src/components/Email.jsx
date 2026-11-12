@@ -20,8 +20,13 @@ import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import DisplayEmail from "./DisplayEmail";
 import NoMails from "./error/NoMails";
 import { emailContext } from "../App";
-import fetchEmails from "../api/api";
+import { listSent } from "../api/emails";
+import { listDrafts } from "../api/drafts";
 import { motion } from "framer-motion";
+
+// Sent and Drafts are live Gmail views; both resolve to { emails, nextPageToken }
+const listMailbox = (view, pageToken) =>
+  (view.toLowerCase() === "sent" ? listSent : listDrafts)(pageToken);
 
 const Email = () => {
   const { openDrawer } = useOutletContext();
@@ -43,7 +48,7 @@ const Email = () => {
   const loadMore = async () => {
     if (!liveNext || loadingMore) return;
     setLoadingMore(true);
-    const res = await fetchEmails(liveView, liveNext);
+    const res = await listMailbox(liveView, liveNext).catch(() => ({ emails: [], nextPageToken: null }));
     setLiveEmails((prev) => {
       const seen = new Set(prev.map((e) => e.email_id));
       return [...prev, ...(res.emails || []).filter((e) => !seen.has(e.email_id))];
@@ -58,7 +63,8 @@ const Email = () => {
     setLiveEmails([]);
     setLiveNext(null);
     setLiveLoading(true);
-    fetchEmails(liveView)
+    listMailbox(liveView)
+      .catch(() => ({ emails: [], nextPageToken: null }))
       .then((res) => {
         if (cancelled) return;
         setLiveEmails(res.emails || []);

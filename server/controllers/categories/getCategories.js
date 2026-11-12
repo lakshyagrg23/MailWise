@@ -1,18 +1,11 @@
-import prisma from '../../prisma.js';
+import prisma from '../../lib/prisma.js';
+import { toCategoryDto } from './validate.js';
 
+/** GET /api/v1/categories */
 export const getCategories = async (req, res) => {
-    try {
-        const result = await prisma.categoryPreference.findMany({
-            where: { user_id: req.user.id },
-            select: { category_name: true, category_description: true }
-        });
-
-        const formatted = result.map(c => ({ name: c.category_name, title: c.category_description }));
-        return res.json(formatted);
-    } catch (error) {
-        console.error("Error fetching categories:", error);
-        return res.status(500).json({ error: "Internal Server Error" });
-    }
+    const rows = await prisma.categoryPreference.findMany({
+        where: { user_id: req.user.id },
+        orderBy: { id: 'asc' }
+    });
+    return res.json(rows.map(toCategoryDto));
 };
-
-export const DisplayingCategoriesName = getCategories;

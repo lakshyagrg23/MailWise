@@ -1,14 +1,13 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import dotenv from 'dotenv';
-import prisma from '../../prisma.js';
+import { env } from '../../config/env.js';
+import prisma from '../../lib/prisma.js';
 import { getAuthenticatedClient } from '../../services/googleAuthService.js';
-import { extractBody } from '../helpFunctions/extractBody.js';
+import { extractBody } from '../../utils/extractBody.js';
 import { cleanEmailForAI } from '../../utils/emailCleaner.js';
 import { executeWithRetry } from '../../utils/retryHelper.js';
 
-dotenv.config();
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const genAI = new GoogleGenerativeAI(env.geminiApiKey);
 const GEMINI_MODEL = 'gemini-2.5-flash';
 
 /**

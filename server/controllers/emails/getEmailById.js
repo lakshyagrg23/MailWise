@@ -1,6 +1,13 @@
-import { extractBody } from "../helpFunctions/extractBody.js";
+import { extractBody } from "../../utils/extractBody.js";
+import { collectAttachments } from "../../utils/attachments.js";
 import { getAuthenticatedClient } from "../../services/googleAuthService.js";
 
+/**
+ * GET /api/v1/emails/:emailId
+ * Body is read live from Gmail. Attachments are returned as metadata only
+ * ({ partId, filename, mimeType, size }); the bytes come from
+ * GET /api/v1/emails/:emailId/attachments/:partId.
+ */
 export const getEmailById = async (req, res) => {
     const emailId = req.params.emailId;
 
@@ -37,43 +44,6 @@ export const getEmailById = async (req, res) => {
         const body = extractBody(msg.data.payload, { preferHtml: true });
         const receivedAt = new Date(parseInt(msg.data.internalDate)).toISOString();
 
-        let attachments = [];
-
-        if (msg.data.payload?.parts) {
-            for (const part of msg.data.payload.parts) {
-                if (part.filename && part.body?.attachmentId) {
-                    const attachId = part.body.attachmentId;
-
-                    try {
-                        const attachmentResponse = await gmail.users.messages.attachments.get({
-                            userId: "me",
-                            messageId: emailId,
-                            id: attachId,
-                        });
-
-                        if (!attachmentResponse.data || !attachmentResponse.data.data) {
-                            console.error("Failed to fetch attachment:", part.filename);
-                            continue;
-                        }
-
-                        const base64Data = attachmentResponse.data.data
-                            .replace(/-/g, "+")
-                            .replace(/_/g, "/");
-
-                        attachments.push({
-                            filename: part.filename,
-                            mimeType: part.mimeType,
-                            data: base64Data,
-                        });
-
-                        console.log(`Retrieved attachment: ${part.filename}`);
-                    } catch (attachmentError) {
-                        console.error(`Error fetching attachment (${part.filename}):`, attachmentError);
-                    }
-                }
-            }
-        }
-
         return res.json({
             email: {
                 _id: emailId,
@@ -83,7 +53,7 @@ export const getEmailById = async (req, res) => {
                 sender,
                 body,
                 received_at: receivedAt,
-                attachments,
+                attachments: collectAttachments(msg.data.payload),
             },
         });
     } catch (error) {
@@ -91,5 +61,3 @@ export const getEmailById = async (req, res) => {
         return res.status(500).json({ error: "Failed to fetch email" });
     }
 };
-
-export const fetch3 = getEmailById;

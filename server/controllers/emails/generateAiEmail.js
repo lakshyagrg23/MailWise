@@ -1,9 +1,8 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import dotenv from 'dotenv';
+import { env } from '../../config/env.js';
 import { executeWithRetry } from '../../utils/retryHelper.js';
 
-dotenv.config();
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const genAI = new GoogleGenerativeAI(env.geminiApiKey);
 
 const MAX_DETAILS = 1000;
 const MAX_SUBJECT = 200;
@@ -89,4 +88,3 @@ Return the response strictly in the following JSON format:
     }
 };
 
-export const aiEmail = generateAiEmail;

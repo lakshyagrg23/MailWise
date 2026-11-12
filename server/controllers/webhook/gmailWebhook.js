@@ -1,7 +1,5 @@
-import dotenv from "dotenv";
-import prisma from "../../prisma.js";
+import prisma from "../../lib/prisma.js";
 
-dotenv.config();
 
 const isValidHistoryId = (value) =>
     (typeof value === "string" && /^\d{1,20}$/.test(value)) ||
@@ -52,4 +50,3 @@ export const gmailWebhook = async (req, res) => {
     }
 };
 
-export const fetchMail = gmailWebhook;

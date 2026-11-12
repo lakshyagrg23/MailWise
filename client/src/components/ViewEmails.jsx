@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
-import http from '../api/http';
+import { getEmail, summarizeEmail, downloadAttachment as fetchAttachment } from '../api/emails';
 import {
   Box,
   Typography,
@@ -22,6 +22,13 @@ import { emailContext } from "../App";
 import { getRandomColor } from '../content/getColor';
 import dayjs from 'dayjs';
 
+const formatSize = (bytes) => {
+  if (!bytes) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
 const ViewEmails = () => {
   const { setEmails } = useContext(emailContext);
   const { state } = useLocation();
@@ -32,6 +39,8 @@ const ViewEmails = () => {
   const [email, setEmail] = useState(initialEmail);
   const [emailBody, setEmailBody] = useState(null);
   const [attachments, setAttachments] = useState([]);
+  const [downloadingPart, setDownloadingPart] = useState(null);
+  const [downloadError, setDownloadError] = useState('');
   const [loading, setLoading] = useState(true);
 
   // Summary State (only initialize if real AI summary exists)
@@ -46,10 +55,10 @@ const ViewEmails = () => {
       const fetchEmailData = async () => {
         setLoading(true);
         try {
-          const response = await http.get(`/fetch-email/${email.email_id}`);
-          if (response.data?.email) {
-            setEmailBody(response.data.email.body);
-            setAttachments(response.data.email.attachments || []);
+          const data = await getEmail(email.email_id);
+          if (data?.email) {
+            setEmailBody(data.email.body);
+            setAttachments(data.email.attachments || []);
           }
         } catch (error) {
           console.error("Error fetching email:", error);
@@ -63,13 +72,37 @@ const ViewEmails = () => {
     }
   }, [email, emailBody]);
 
+  // Attachments are listed as metadata; the bytes are fetched only when the user asks for them.
+  // A blob request keeps the session cookie on the call (a plain link to the API would not).
+  const downloadAttachment = async (att, idx) => {
+    if (downloadingPart !== null) return;
+    setDownloadingPart(att.partId);
+    setDownloadError('');
+    try {
+      const blob = await fetchAttachment(email.email_id, att.partId);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = att.filename || `attachment-${idx + 1}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to download attachment:', err);
+      setDownloadError(`Could not download ${att.filename || 'the attachment'}. Please try again.`);
+    } finally {
+      setDownloadingPart(null);
+    }
+  };
+
   const handleGenerateSummary = async () => {
     if (!email?.email_id) return;
     setLoadingSummary(true);
     try {
-      const res = await http.get(`/email/summarize/${email.email_id}`);
-      if (res.data?.summary) {
-        setSummary(res.data.summary);
+      const result = await summarizeEmail(email.email_id);
+      if (result?.summary) {
+        setSummary(result.summary);
       }
     } catch (err) {
       console.error("Failed to generate AI summary:", err);
@@ -288,7 +321,7 @@ const ViewEmails = () => {
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
               {attachments.map((att, idx) => (
                 <Box
-                  key={idx}
+                  key={att.partId ?? idx}
                   sx={{
                     display: 'flex',
                     alignItems: 'center',
@@ -304,20 +337,26 @@ const ViewEmails = () => {
                   <Typography sx={{ fontSize: '13px', fontWeight: 500, color: '#334155', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {att.filename || `attachment-${idx + 1}`}
                   </Typography>
-                  {att.data && (
-                    <IconButton
-                      size="small"
-                      component="a"
-                      href={`data:${att.mimeType || 'application/octet-stream'};base64,${att.data}`}
-                      download={att.filename || 'attachment'}
-                      sx={{ color: '#64748b', '&:hover': { color: '#2563eb' } }}
-                    >
-                      <DownloadIcon fontSize="small" />
-                    </IconButton>
+                  {att.size > 0 && (
+                    <Typography sx={{ fontSize: '12px', color: '#94a3b8' }}>{formatSize(att.size)}</Typography>
                   )}
+                  <IconButton
+                    size="small"
+                    aria-label={`Download ${att.filename || 'attachment'}`}
+                    disabled={downloadingPart !== null}
+                    onClick={() => downloadAttachment(att, idx)}
+                    sx={{ color: '#64748b', '&:hover': { color: '#2563eb' } }}
+                  >
+                    {downloadingPart === att.partId
+                      ? <CircularProgress size={16} />
+                      : <DownloadIcon fontSize="small" />}
+                  </IconButton>
                 </Box>
               ))}
             </Box>
+            {downloadError && (
+              <Typography sx={{ mt: 1, fontSize: '13px', color: '#dc2626' }}>{downloadError}</Typography>
+            )}
           </Box>
         )}
       </Paper>

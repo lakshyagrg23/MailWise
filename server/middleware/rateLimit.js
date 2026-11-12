@@ -13,6 +13,7 @@ const make = (max, windowMs = 60 * 1000) => rateLimit({
 export const aiDraftLimiter = make(20);
 export const summarizeLimiter = make(60);
 export const syncLimiter = make(30);
+export const attachmentLimiter = make(60);
 
 // Global per-IP limiter for unauthenticated /auth/* endpoints
 export const authLimiter = rateLimit({

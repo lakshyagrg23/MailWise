@@ -1,42 +1,38 @@
-import prisma from '../../prisma.js';
+import prisma from '../../lib/prisma.js';
+import { notFound } from '../../utils/httpErrors.js';
+import { parseCategoryPatch, toCategoryDto } from './validate.js';
 
+/** PATCH /api/v1/categories/:categoryId  { name?, description? }. Renaming also re-labels the user's stored emails. */
 export const updateCategory = async (req, res) => {
-    const { categoryName } = req.params;
-    const { newCategoryName, newDescription } = req.body || {};
+    const patch = parseCategoryPatch(req.body);
+    const id = Number(req.params.categoryId);
 
-    if (!newCategoryName || !newDescription) {
-        return res.status(400).json({ error: "Both newCategoryName and newDescription are required" });
-    }
+    // One transaction: the category row and the stored emails that carry its name change together,
+    // so a rename can never leave mail pointing at a name that no longer exists. Any throw inside
+    // (not found, or P2002 when renaming onto an existing name -> 409) rolls everything back.
+    const row = await prisma.$transaction(async (tx) => {
+        // Scope by owner: a category id belonging to someone else is indistinguishable from missing
+        const existing = await tx.categoryPreference.findFirst({ where: { id, user_id: req.user.id } });
+        if (!existing) throw notFound('Category not found');
 
-    try {
-        const where = {
-            user_id_category_name: {
-                user_id: req.user.id,
-                category_name: categoryName
-            }
-        };
-
-        // Check if the category exists
-        const existingCategory = await prisma.categoryPreference.findUnique({ where });
-
-        if (!existingCategory) {
-            return res.status(404).json({ error: "Category not found" });
-        }
-
-        // Update category
-        const updated = await prisma.categoryPreference.update({
-            where,
+        const updated = await tx.categoryPreference.update({
+            where: { id },
             data: {
-                category_name: newCategoryName,
-                category_description: newDescription
+                ...(patch.name !== undefined && { category_name: patch.name }),
+                ...(patch.description !== undefined && { category_description: patch.description })
             }
         });
 
-        return res.json({ message: "Category updated successfully", category: updated });
-    } catch (error) {
-        console.error("Database update error:", error);
-        return res.status(500).json({ error: "Internal server error" });
-    }
-};
+        if (patch.name !== undefined && patch.name !== existing.category_name) {
+            // Case-insensitive, matching how the email list filters by category
+            await tx.emailMetadata.updateMany({
+                where: { user_id: req.user.id, category: { equals: existing.category_name, mode: 'insensitive' } },
+                data: { category: patch.name }
+            });
+        }
 
-export const UpdateCategory = updateCategory;
+        return updated;
+    });
+
+    return res.json(toCategoryDto(row));
+};

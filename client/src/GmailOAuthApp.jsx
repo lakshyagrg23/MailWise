@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import http, { baseURL } from "./api/http";
+import { getAuthUrl, startDemo as apiStartDemo } from "./api/auth";
 import { motion } from "framer-motion";
 import { Mail, Sparkles, Settings2, Zap, PenTool, ArrowRight, Shield, Lock } from "lucide-react";
 
@@ -9,11 +9,21 @@ const MailWiseLogin = () => {
   const startOAuthFlow = async () => {
     setLoading(true);
     try {
-      const response = await http.get("/auth/url");
-      const { authUrl } = response.data;
-      window.location.href = authUrl;
+      window.location.href = await getAuthUrl();
     } catch (error) {
       console.error("OAuth Flow Error:", error);
+      setLoading(false);
+    }
+  };
+
+  const startDemo = async () => {
+    setLoading(true);
+    try {
+      // POST sets the session cookie; a full navigation then lets App bootstrap via /auth/me
+      await apiStartDemo();
+      window.location.assign("/emails/inbox");
+    } catch (error) {
+      console.error("Demo login error:", error);
       setLoading(false);
     }
   };
@@ -109,7 +119,7 @@ const MailWiseLogin = () => {
 
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
               <button
-                onClick={() => { window.location.href = `${baseURL}/auth/demo` }}
+                onClick={startDemo}
                 disabled={loading}
                 className="group relative flex items-center justify-center gap-3 bg-white hover:bg-slate-50 text-slate-900 border border-slate-200 px-8 py-4 rounded-2xl text-lg font-semibold transition-all shadow-sm disabled:opacity-70 disabled:cursor-not-allowed"
               >

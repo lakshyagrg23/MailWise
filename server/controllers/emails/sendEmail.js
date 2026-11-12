@@ -1,67 +1,50 @@
 import { getAuthenticatedClient } from '../../services/googleAuthService.js';
 import { buildRawMessage } from '../../utils/mimeBuilder.js';
-import dotenv from 'dotenv';
-dotenv.config();
+import { HttpError, badRequest } from '../../utils/httpErrors.js';
+import { DRAFT_ID_RE } from '../../utils/params.js';
 
+/**
+ * POST /api/v1/emails/send   { to, subject, body, cc?, bcc?, draftId? }
+ * Sends one message. When `draftId` is given, that draft is removed afterwards (best effort).
+ */
 export const sendEmail = async (req, res) => {
     if (req.user.isDemo) {
-        return res.status(200).json({ message: 'Email sent successfully', response: "success" });
+        return res.json({ message: 'Email sent successfully' });
+    }
+
+    const { to, subject = '', body = '', cc, bcc, draftId } = req.body || {};
+    const { gmail, user } = await getAuthenticatedClient({ userId: req.user.id });
+
+    let raw;
+    try {
+        raw = buildRawMessage({
+            from: user?.email || 'me',
+            to,
+            subject,
+            body,
+            reqBody: { cc, bcc },
+        });
+    } catch (err) {
+        if (err.isValidation) throw badRequest(err.message);
+        throw err;
     }
 
     try {
-        const { gmail, user } = await getAuthenticatedClient({ userId: req.user.id });
-        const senderID = user?.email || 'me';
-
-        // Handle both stringified body (legacy frontend Compose.jsx) and standard JSON payload
-        let to = req.body?.to;
-        let subject = req.body?.subject || '';
-        let body = req.body?.body || '';
-
-        if (typeof req.body?.body === 'string') {
-            try {
-                const parsed = JSON.parse(req.body.body);
-                to = parsed.to || to;
-                subject = parsed.subject !== undefined ? parsed.subject : subject;
-                body = parsed.body !== undefined ? parsed.body : body;
-            } catch {
-                // If it's not JSON, treat req.body.body as the raw body string
-            }
-        } else if (req.body?.body && typeof req.body.body === 'object') {
-            to = req.body.body.to || to;
-            subject = req.body.body.subject !== undefined ? req.body.body.subject : subject;
-            body = req.body.body.body !== undefined ? req.body.body.body : body;
-        }
-
-        let base64Email;
-        try {
-            base64Email = buildRawMessage({ from: senderID, to, subject, body, reqBody: req.body });
-        } catch (err) {
-            if (err.isValidation) return res.status(400).json({ error: err.message });
-            throw err;
-        }
-
-        await gmail.users.messages.send({
-            userId: 'me',
-            requestBody: {
-                raw: base64Email
-            }
-        });
-
-        // Sending a composed draft: remove the now-redundant draft (best effort)
-        const draftId = req.body?.draftId;
-        if (typeof draftId === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(draftId)) {
-            try {
-                await gmail.users.drafts.delete({ userId: 'me', id: draftId });
-            } catch (draftErr) {
-                console.warn('Could not delete draft after send:', draftErr.message);
-            }
-        }
-
-        return res.status(200).json({ message: 'Email sent successfully', response: "success" });
-    } catch (error) {
-        console.error('Error sending email:', error);
-        return res.status(500).json({ error: 'Failed to send email' });
+        await gmail.users.messages.send({ userId: 'me', requestBody: { raw } });
+    } catch (err) {
+        if (err?.code === 403) throw err; // missing scope: central handler asks the user to re-login
+        console.error('Error sending email:', err);
+        throw new HttpError(502, 'Failed to send email');
     }
-};
 
-export const sendEmails = sendEmail;
+    // Sending a composed draft: remove the now-redundant draft (best effort)
+    if (typeof draftId === 'string' && DRAFT_ID_RE.test(draftId)) {
+        try {
+            await gmail.users.drafts.delete({ userId: 'me', id: draftId });
+        } catch (draftErr) {
+            console.warn('Could not delete draft after send:', draftErr.message);
+        }
+    }
+
+    return res.json({ message: 'Email sent successfully' });
+};

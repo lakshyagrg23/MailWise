@@ -2,8 +2,9 @@
 import React, { Suspense, useEffect, useState, createContext, lazy } from 'react';
 import { Navigate, Route, createBrowserRouter, createRoutesFromElements, RouterProvider } from 'react-router-dom';
 import GmailOAuthApp from './GmailOAuthApp';
-import fetchEmails from './api/api';
-import http, { setUnauthorizedHandler } from './api/http';
+import { listEmails, syncEmails } from './api/emails';
+import { getMe } from './api/auth';
+import { setUnauthorizedHandler } from './api/http';
 import Error from './components/error/Error';
 import SuspenseLoader from './components/error/SuspenseLoader';
 
@@ -78,10 +79,10 @@ const App = () => {
   // Bootstrap the session from the HttpOnly cookie
   useEffect(() => {
     let cancelled = false;
-    http.get('/auth/me')
-      .then((res) => {
+    getMe()
+      .then((data) => {
         if (cancelled) return;
-        const u = res.data || {};
+        const u = data || {};
         setSelectedUser(u.id || "");
         setName(u.name || "User");
         if (u.email) setEmail(u.email);
@@ -103,16 +104,24 @@ const App = () => {
     }
   }, [authenticated, category, selectedUser]);
 
-  const fetchEmailData = async (cat) => {
+  // The inbox list always holds "All" (the category tabs filter client-side). Show what is already
+  // stored right away, then pull new mail from Gmail and re-read.
+  const fetchEmailData = async () => {
     if (!authenticated) return;
 
-    const result = await fetchEmails(cat);
-    const { emails: fetchedEmails, email: userEmail, pic } = result || {};
-
-    setEmails(Array.isArray(fetchedEmails) ? fetchedEmails : []);
-    if (userEmail) setEmail(userEmail);
-    if (pic) setPicture(pic);
+    try {
+      setEmails(await listEmails("All"));
+    } catch (error) {
+      console.error("Error loading emails:", error);
+    }
     setLoaded(true);
+
+    try {
+      await syncEmails();
+      setEmails(await listEmails("All"));
+    } catch (error) {
+      console.error("Error syncing emails:", error);
+    }
   };
 
   // Gmail-style refresh: pull new mail in place (no page reload). The inbox list always holds
@@ -121,11 +130,11 @@ const App = () => {
     if (!authenticated || refreshing) return;
     setRefreshing(true);
     try {
-      const result = await fetchEmails("All");
-      if (!result.error) {
-        setEmails(Array.isArray(result.emails) ? result.emails : []);
-        if (result.email) setEmail(result.email);
-        if (result.pic) setPicture(result.pic);
+      try {
+        await syncEmails();
+        setEmails(await listEmails("All"));
+      } catch (error) {
+        console.error("Error refreshing emails:", error);
       }
       setDraftsVersion((v) => v + 1);
     } finally {

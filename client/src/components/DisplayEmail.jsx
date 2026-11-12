@@ -14,7 +14,8 @@ import { routes } from '../routes/route';
 import { getRandomColor } from '../content/getColor';
 import { motion, AnimatePresence } from 'framer-motion';
 import dayjs from 'dayjs';
-import http from '../api/http';
+import { updateEmail, summarizeEmail } from '../api/emails';
+import { getDraft } from '../api/drafts';
 
 
 const EmailRow = styled(Box)`
@@ -134,9 +135,9 @@ const DisplayEmail = ({ email }) => {
       prev.map((e) => (e.email_id === email.email_id ? { ...e, ...patch } : e))
     );
 
-  const setFlag = (url, body, patch, revert) => {
+  const setFlag = (patch, revert) => {
     patchEmail(patch);
-    http.post(url, body).catch((err) => {
+    updateEmail(email.email_id, patch).catch((err) => {
       console.error('Failed to persist email state:', err);
       patchEmail(revert);
     });
@@ -145,33 +146,23 @@ const DisplayEmail = ({ email }) => {
   // Opening an email marks it read
   const markAsRead = () => {
     if (!isUnread) return;
-    setFlag(`/email/read/${email.email_id}`, { read: true }, { is_read: true }, { is_read: false });
+    setFlag({ is_read: true }, { is_read: false });
   };
 
   const toggleRead = (e) => {
     e.stopPropagation();
     const read = isUnread; // unread -> read, read -> unread
-    setFlag(
-      `/email/read/${email.email_id}`,
-      { read },
-      { is_read: read },
-      { is_read: !read }
-    );
+    setFlag({ is_read: read }, { is_read: !read });
   };
 
   const toggleStar = (e) => {
     e.stopPropagation();
-    setFlag(
-      `/email/star/${email.email_id}`,
-      { starred: !isStarred },
-      { is_starred: !isStarred },
-      { is_starred: isStarred }
-    );
+    setFlag({ is_starred: !isStarred }, { is_starred: isStarred });
   };
 
   const openDraft = async () => {
     try {
-      const { data } = await http.get(`/email/drafts/${email.draft_id}`);
+      const data = await getDraft(email.draft_id);
       hook.setData(data);
       hook.setComposeOpen(true);
     } catch (err) {
@@ -200,10 +191,10 @@ const DisplayEmail = ({ email }) => {
 
     setLoadingSummary(true);
     try {
-      const response = await http.get(`/email/summarize/${email.email_id}`);
+      const result = await summarizeEmail(email.email_id);
 
-      if (response.data?.summary) {
-        setSummaryText(response.data.summary);
+      if (result?.summary) {
+        setSummaryText(result.summary);
       }
     } catch (err) {
       console.error('Failed to load on-demand summary:', err);

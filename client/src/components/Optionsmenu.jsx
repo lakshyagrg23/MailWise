@@ -1,4 +1,4 @@
-import http from "../api/http";
+import { logout as apiLogout } from "../api/auth";
 import React, { useState, useContext, useEffect, useRef } from "react";
 import { emailContext } from "../App";
 import { motion, AnimatePresence } from "framer-motion";
@@ -58,7 +58,7 @@ const OptionsMenu = () => {
 
   const logout = async () => {
     try {
-      await http.post("/auth/logout");
+      await apiLogout();
     } catch (error) {
       console.error("Logout error:", error);
     }

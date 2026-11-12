@@ -1,4 +1,5 @@
 import { OAuth2Client } from "google-auth-library";
+import { env } from "../config/env.js";
 
 const client = new OAuth2Client();
 
@@ -8,8 +9,8 @@ const client = new OAuth2Client();
  * including missing configuration. Runs before the body is trusted.
  */
 export const verifyPubSubToken = async (req, res, next) => {
-    const audience = process.env.PUBSUB_AUDIENCE;
-    const expectedEmail = process.env.PUBSUB_SERVICE_ACCOUNT_EMAIL;
+    const audience = env.pubsub.audience;
+    const expectedEmail = env.pubsub.serviceAccountEmail;
 
     if (!audience || !expectedEmail) {
         console.error("Pub/Sub webhook auth not configured (PUBSUB_AUDIENCE / PUBSUB_SERVICE_ACCOUNT_EMAIL)");

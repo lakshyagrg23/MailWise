@@ -1,4 +1,4 @@
-import prisma from '../prisma.js';
+import prisma from '../lib/prisma.js';
 import { SESSION_COOKIE, verifySessionToken } from '../utils/session.js';
 
 export const DEMO_GOOGLE_ID = 'demo_google_id';
@@ -16,13 +16,13 @@ export const requireAuth = async (req, res, next) => {
 
         const user = await prisma.user.findUnique({
             where: { id: userId },
-            select: { id: true, google_id: true }
+            select: { id: true, google_id: true, email: true }
         });
         if (!user) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
-        req.user = { id: user.id, isDemo: user.google_id === DEMO_GOOGLE_ID };
+        req.user = { id: user.id, email: user.email, isDemo: user.google_id === DEMO_GOOGLE_ID };
         return next();
     } catch (error) {
         console.error('requireAuth error:', error.message);

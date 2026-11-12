@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { env } from '../config/env.js';
 
 export const SESSION_COOKIE = 'mailwise_session';
 export const OAUTH_STATE_COOKIE = 'mailwise_oauth_state';
@@ -6,15 +7,12 @@ export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const STATE_TTL_MS = 10 * 60 * 1000;
 
 const getSecret = () => {
-    const secret = process.env.SESSION_SECRET;
+    const secret = env.session.secret;
     if (!secret || secret.length < 16) {
         throw new Error('SESSION_SECRET is missing or too short (min 16 chars)');
     }
     return secret;
 };
-
-/** Throws if session configuration is invalid. Call at startup. */
-export const assertSessionConfig = () => { getSecret(); };
 
 const b64url = (str) => Buffer.from(str).toString('base64url');
 
@@ -29,15 +27,15 @@ const safeEqual = (a, b) => {
 };
 
 export const cookieOptions = (maxAgeMs) => {
-    const sameSite = (process.env.SESSION_SAMESITE || 'lax').toLowerCase();
+    const sameSite = env.session.sameSite;
     const opts = {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production' || sameSite === 'none',
+        secure: env.isProduction || sameSite === 'none',
         sameSite,
         path: '/',
         maxAge: maxAgeMs
     };
-    if (process.env.COOKIE_DOMAIN) opts.domain = process.env.COOKIE_DOMAIN;
+    if (env.session.cookieDomain) opts.domain = env.session.cookieDomain;
     return opts;
 };
 

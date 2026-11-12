@@ -1,4 +1,4 @@
-import prisma from '../../prisma.js';
+import prisma from '../../lib/prisma.js';
 
 export const me = async (req, res) => {
     try {

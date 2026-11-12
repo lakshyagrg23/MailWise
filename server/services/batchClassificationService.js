@@ -1,12 +1,11 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import dotenv from 'dotenv';
+import { env } from '../config/env.js';
 import { asyncPool } from '../utils/asyncPool.js';
 import { cleanEmailForAI, decodeHtmlEntities } from '../utils/emailCleaner.js';
 import { executeWithRetry } from '../utils/retryHelper.js';
 
-dotenv.config();
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+const genAI = new GoogleGenerativeAI(env.geminiApiKey);
 const GEMINI_MODEL = 'gemini-2.5-flash';
 const MAX_BATCH_TOKENS = 8000;
 

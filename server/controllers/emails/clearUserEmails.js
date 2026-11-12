@@ -1,4 +1,4 @@
-import prisma from '../../prisma.js';
+import prisma from '../../lib/prisma.js';
 
 export const clearUserEmails = async (req, res) => {
     // Prevent deleting the mock emails for the demo account

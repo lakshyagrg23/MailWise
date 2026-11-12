@@ -2,6 +2,9 @@ import axios from 'axios';
 
 export const baseURL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
+// Every resource endpoint lives under this prefix. Auth endpoints (/auth/*) are unversioned.
+export const API = '/api/v1';
+
 const http = axios.create({ baseURL, withCredentials: true });
 
 let unauthorizedHandler = null;

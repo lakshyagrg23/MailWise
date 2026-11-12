@@ -1,5 +1,5 @@
-import prisma from '../prisma.js';
-import { extractBody } from '../controllers/helpFunctions/extractBody.js';
+import prisma from '../lib/prisma.js';
+import { extractBody } from '../utils/extractBody.js';
 import { cleanEmailForAI } from '../utils/emailCleaner.js';
 import { executeWithRetry } from '../utils/retryHelper.js';
 import { asyncPoolValues } from '../utils/asyncPool.js';

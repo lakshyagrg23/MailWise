@@ -1,5 +1,6 @@
 import React, { useContext, useEffect, useRef, useState } from 'react';
-import http from '../api/http';
+import { sendEmail } from '../api/emails';
+import { saveDraft as saveDraftApi, deleteDraft } from '../api/drafts';
 import {
   Box,
   Button,
@@ -141,17 +142,10 @@ const Compose = ({ openDialog, setOpenDialog }) => {
       setSaveError('');
       try {
         const { to, cc, bcc, subject, body } = current;
-        const res = await http.post('/email/drafts', {
-          draftId: draftIdRef.current,
-          to,
-          cc,
-          bcc,
-          subject,
-          body,
-        });
-        draftIdRef.current = res.data.draftId;
+        const saved = await saveDraftApi(draftIdRef.current, { to, cc, bcc, subject, body });
+        draftIdRef.current = saved.draftId;
         lastSaved.current = snap;
-        hook.setData((prev) => ({ ...prev, draftId: res.data.draftId }));
+        hook.setData((prev) => ({ ...prev, draftId: saved.draftId }));
         hook.setDraftsVersion((v) => v + 1);
         setSaveState('saved');
         return true;
@@ -190,7 +184,7 @@ const Compose = ({ openDialog, setOpenDialog }) => {
     await inflight.current;
     if (draftIdRef.current) {
       try {
-        await http.delete(`/email/drafts/${draftIdRef.current}`);
+        await deleteDraft(draftIdRef.current);
         hook.setDraftsVersion((v) => v + 1);
       } catch (err) {
         console.error('Deleting draft error:', err);
@@ -204,18 +198,11 @@ const Compose = ({ openDialog, setOpenDialog }) => {
     setSending(true);
     try {
       await inflight.current; // let any in-flight save finish so the draft id is final
-      const response = await http.post('/email/send-emails', {
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(hook.data),
-        draftId: draftIdRef.current,
-      });
-      if (response.status === 200 || response.data?.status === 'success') {
-        hook.setmessageSent(true);
-        hook.setDraftsVersion((v) => v + 1);
-        reset();
-      } else {
-        setSendError(response.data?.message || 'Failed to send');
-      }
+      const { to, cc, bcc, subject, body } = hook.data;
+      await sendEmail({ to, cc, bcc, subject, body, draftId: draftIdRef.current });
+      hook.setmessageSent(true);
+      hook.setDraftsVersion((v) => v + 1);
+      reset();
     } catch (err) {
       setSendError(err.response?.data?.error || 'Failed to send. Please try again.');
     } finally {

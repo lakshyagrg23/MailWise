@@ -29,7 +29,7 @@ import { NavLink } from "react-router-dom";
 import { routes } from "../routes/route";
 import { emailContext } from "../App";
 import { getRandomColor } from "../content/getColor";
-import http from "../api/http";
+import { listCategories } from "../api/categories";
 
 // Gmail-derived buckets: low priority, grouped and collapsed by default
 const FILTERED = ["Promotions", "Social", "Spam"];
@@ -231,10 +231,10 @@ const SideBarContent = () => {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const response = await http.get("/categories");
+        const fetched = await listCategories();
         categoryHook.setCategories([
           { name: "All", title: "All Emails" },
-          ...response.data,
+          ...fetched,
         ]);
       } catch (error) {
         console.error("Error fetching categories:", error);

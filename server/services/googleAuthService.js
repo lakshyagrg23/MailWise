@@ -1,17 +1,16 @@
 import { google } from 'googleapis';
-import prisma from '../prisma.js';
-import dotenv from 'dotenv';
+import prisma from '../lib/prisma.js';
+import { env } from '../config/env.js';
 
-dotenv.config();
 
 /**
  * Creates a new OAuth2 client using environment credentials.
  */
 export const createOAuth2Client = () => {
     return new google.auth.OAuth2(
-        process.env.GOOGLE_CLIENT_ID,
-        process.env.GOOGLE_CLIENT_SECRET,
-        process.env.GOOGLE_REDIRECT_URI
+        env.google.clientId,
+        env.google.clientSecret,
+        env.google.redirectUri
     );
 };
 

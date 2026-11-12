@@ -57,16 +57,18 @@ There is no queue, cache, worker, or scheduler: everything runs inline in the re
 4. `cookieParser()` (L41), `express.json()` (L42; default 100 kb limit).
 5. Router mounting (L45-53):
 
+> **Updated after the routing restructure.** Sections below that cite `getEmailsByCategory.js`, `emailListRoutes.js`, `emailActionRoutes.js`, `helpFunctions/` or old `/fetch-email(s)`, `/email(s)` paths describe the pre-restructure code; the endpoint contract in section 8 and this table are current.
+
 | Mount | Middleware chain | Router |
 |---|---|---|
-| `/auth` | `authLimiter` (60/min per IP) -> router (`/me` adds `requireAuth`) | `routes/authRoutes.js` |
-| `/webhook` | none at mount; route adds `verifyPubSubToken` | `routes/webhookRoutes.js:8` |
-| `/fetch-emails` | `requireAuth` -> `syncLimiter` 30/min/user | `routes/emailListRoutes.js:8` |
-| `/fetch-email` | `requireAuth` -> `aiDraftLimiter` 20/min on POST `/email` only | `routes/emailDetailRoutes.js:9` |
-| `/categories` | `requireAuth` | `routes/categoryRoutes.js` |
-| `/email` and `/emails` (same router mounted twice) | `requireAuth` -> `summarizeLimiter` 60/min on summarize only | `routes/emailActionRoutes.js` |
+| `/auth` | per-route `authLimiter` (60/min per IP) on `/url`, `/callback`, `/demo`; `/me` uses `requireAuth` only | `routes/authRoutes.js` |
+| `/webhook` | none at mount; route adds `verifyPubSubToken` | `routes/webhookRoutes.js` |
+| `/api/v1` | `requireAuth` once, then sub-routers: `/emails`, `/sent`, `/drafts`, `/categories`, `/ai` | `routes/v1/index.js` |
+| `/health` | none | `app.js` |
 
-6. Error handler (L56-59) logs and returns `{error:"Internal Server Error"}`. **[Verified]** Express 4 does not route rejected promises from `async` handlers to it, so it fires only for sync throws or `next(err)`.
+`/auth` and `/webhook` are intentionally unversioned: Google registers the OAuth redirect URI and the Pub/Sub push endpoint, and the browser follows `/auth/callback` directly.
+
+6. Unknown routes return JSON 404. The error handler maps errors via `utils/httpErrors.toErrorResponse` (`HttpError` -> its status; Prisma `P2002` -> 409, `P2025` -> 404; Gmail 403 insufficient-scope -> 403 `reauth_required`; malformed JSON -> 400; anything else -> generic 500 that never leaks `err.message`). Every async handler is wrapped in `utils/asyncHandler` so rejections reach it.
 7. `app.listen(PORT||5000)` and `export default app` (L62-64).
 
 `requireAuth` (`middleware/requireAuth.js:10-31`) verifies the HMAC-signed cookie (`utils/session.js:65-80`), loads the user row (one DB query per request), and sets `req.user = {id, isDemo}` where `isDemo = google_id === 'demo_google_id'`. Limiters key by `u:<userId>` when `req.user` exists, else by IP (`rateLimit.js:9`).
@@ -234,24 +236,31 @@ Identity is exclusively `req.user.id` from the cookie. A grep of `client/src` fi
 
 All endpoints except `/auth/*` and `/webhook/*` need the session cookie (401 otherwise). The client uses axios `withCredentials: true` (`client/src/api/http.js:6`); a response interceptor turns any non-`/auth/` 401 into `resetSession()` (`http.js:33-42`, `App.jsx:70-73`).
 
-| Method | Path | Auth | Limiter | Handler | Client caller |
+| Method | Path | Auth | Limiter | Handler | Notes |
 |---|---|---|---|---|---|
-| GET | `/auth/url` | public | authLimiter (IP) | `controllers/auth/url.js` | `GmailOAuthApp.jsx:12` |
+| GET | `/auth/url` | public | authLimiter (IP) | `auth/url.js` | |
 | GET | `/auth/callback` | public (state cookie) | authLimiter | `auth/callback.js` | browser redirect from Google |
-| GET | `/auth/demo` | public | authLimiter | `auth/demoLogin.js` | `GmailOAuthApp.jsx:112` (navigation) |
-| GET | `/auth/me` | cookie | authLimiter (IP) | `auth/me.js` | `App.jsx:78` |
-| POST | `/auth/logout` | none (clears cookie) | authLimiter | `auth/logout.js` | `Optionsmenu.jsx:22` |
-| GET | `/fetch-emails/:category` | cookie | syncLimiter 30/min/user | `emails/getEmailsByCategory.js` | `api/api.js:5` (via `App.jsx:106`) |
-| GET | `/fetch-email/:emailId` | cookie | none | `emails/getEmailById.js` | `ViewEmails.jsx:49` |
-| POST | `/fetch-email/email` | cookie | aiDraftLimiter 20/min | `emails/generateAiEmail.js` | `Auto_email.jsx:29` |
-| GET | `/email/summarize/:emailId` (also `/emails/...`) | cookie | summarizeLimiter 60/min | `emails/summarizeEmail.js` | `DisplayEmail.jsx:135`, `ViewEmails.jsx:70` |
-| POST | `/email/send-emails` (also `/emails/...`) | cookie | none | `emails/sendEmail.js` | `Compose.jsx:82` |
-| DELETE | `/email` or `/emails` (router root) | cookie | none | `emails/clearUserEmails.js` | none |
-| GET | `/categories` | cookie | none | `categories/getCategories.js` | `SideBarContent.jsx:52` |
-| POST | `/categories` | cookie | none | `categories/createCategory.js` | `NewCategory.jsx:43` |
-| PUT | `/categories/:categoryName` | cookie | none | `categories/updateCategory.js` | `NewCategory.jsx:67` |
-| DELETE | `/categories/:categoryName` | cookie | none | `categories/deleteCategory.js` | `NewCategory.jsx:93` |
+| POST | `/auth/demo` | public | authLimiter | `auth/demoLogin.js` | transactional reset + seed; returns `{ok:true}`, client then navigates |
+| GET | `/auth/me` | cookie | none | `auth/me.js` | |
+| POST | `/auth/logout` | none (clears cookie) | none | `auth/logout.js` | |
+| GET | `/api/v1/emails?category=` | cookie | none | `emails/listEmails.js` | read-only, DB only; omit category or `All` for everything |
+| POST | `/api/v1/emails/sync` | cookie | syncLimiter 30/min/user | `emails/syncEmails.js` | Gmail pull + Gemini classify + read/star reconcile; `{newEmails}` |
+| POST | `/api/v1/emails/send` | cookie | none | `emails/sendEmail.js` | flat `{to, subject, body, cc?, bcc?, draftId?}` |
+| GET | `/api/v1/emails/:emailId` | cookie | none | `emails/getEmailById.js` | body live from Gmail; attachments as metadata `{partId, filename, mimeType, size}` (recursive MIME walk) |
+| GET | `/api/v1/emails/:emailId/attachments/:partId` | cookie | attachmentLimiter 60/min | `emails/getAttachment.js` | binary download; `Content-Disposition: attachment`, `nosniff`, 25 MB cap; helpers in `utils/attachments.js` |
+| PATCH | `/api/v1/emails/:emailId` | cookie | none | `emails/updateEmail.js` | `{is_read?, is_starred?}`; mirrors Gmail labels best-effort |
+| POST | `/api/v1/emails/:emailId/summary` | cookie | summarizeLimiter 60/min | `emails/summarizeEmail.js` | generates (Gemini) or returns cached summary |
+| DELETE | `/api/v1/emails` | cookie | none | `emails/clearUserEmails.js` | unused by the client; demo preserved |
+| GET | `/api/v1/sent?pageToken=` | cookie | none | `emails/listSentEmails.js` | live Gmail |
+| GET/POST | `/api/v1/drafts` | cookie | none | `emails/drafts.js` | list (live Gmail) / create (201) |
+| GET/PUT/DELETE | `/api/v1/drafts/:draftId` | cookie | none | `emails/drafts.js` | PUT recreates if the draft vanished (201) |
+| POST | `/api/v1/ai/compose` | cookie | aiDraftLimiter 20/min | `emails/generateAiEmail.js` | `{type, details}` -> `{subject, body}` |
+| GET/POST | `/api/v1/categories` | cookie | none | `categories/*` | `{id, name, description}`; reserved view names rejected (400); duplicate name -> 409 |
+| PATCH/DELETE | `/api/v1/categories/:categoryId` | cookie | none | `categories/*` | keyed by id; PATCH `{name?, description?}` (a rename re-labels stored emails in one transaction); DELETE -> 204 (does not touch stored emails) |
 | POST | `/webhook/gmail` | Pub/Sub OIDC JWT | none | `webhook/gmailWebhook.js` | Google Pub/Sub, not the client |
+| GET | `/health` | public | none | `server.js` | |
+
+Path params are validated by `router.param` (`utils/params.js`) before any controller runs. Client calls live in `client/src/api/api.js` and the components that use `http` directly.
 
 Observations:
 - **[Verified]** Response shapes are ad hoc: categories return `{name, title}` where title is the description (`getCategories.js:10`); the email list returns raw DB column names (`attachname`, `emailsummary`, `received_date`, `update`) plus `{name, pic, email}`.

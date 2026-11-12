@@ -1,5 +1,5 @@
 import React, { useState, useContext } from 'react';
-import http from '../api/http';
+import { composeEmail } from '../api/ai';
 import {
   Box,
   Typography,
@@ -26,9 +26,9 @@ const Auto_email = () => {
 
         setLoading(true);
         try {
-            const response = await http.post('/fetch-email/email', { type: type, details: description });
-            if (response.data) {
-                setData(prev => ({ ...prev, ...response.data }));
+            const draft = await composeEmail({ type, details: description });
+            if (draft) {
+                setData(prev => ({ ...prev, ...draft }));
                 setOpenAi(false);
             }
         } catch (error) {

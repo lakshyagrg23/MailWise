@@ -1,37 +1,16 @@
-import prisma from '../../prisma.js';
+import prisma from '../../lib/prisma.js';
+import { parseCategoryCreate, toCategoryDto } from './validate.js';
 
+/** POST /api/v1/categories  { name, description } */
 export const createCategory = async (req, res) => {
-    const { newCategoryName, newDescription } = req.body || {};
+    const { name, description } = parseCategoryCreate(req.body);
 
-    if (!newCategoryName || !newDescription) {
-        return res.status(400).json({ error: "Category name and description are required." });
-    }
+    // A duplicate name raises P2002, which the central error handler maps to 409
+    const row = await prisma.categoryPreference.create({
+        data: { user_id: req.user.id, category_name: name, category_description: description }
+    });
 
-    try {
-        const userId = req.user.id;
+    await prisma.user.update({ where: { id: req.user.id }, data: { update: 1 } });
 
-        const result = await prisma.categoryPreference.create({
-            data: {
-                user_id: userId,
-                category_name: newCategoryName,
-                category_description: newDescription
-            }
-        });
-
-        await prisma.user.update({
-            where: { id: userId },
-            data: { update: 1 }
-        });
-
-        return res.status(201).json({
-            id: result.id,
-            name: result.category_name,
-            title: result.category_description
-        });
-    } catch (error) {
-        console.error("Error creating category:", error);
-        return res.status(500).json({ error: "Internal Server Error" });
-    }
+    return res.status(201).json(toCategoryDto(row));
 };
-
-export const InsertnewCat = createCategory;

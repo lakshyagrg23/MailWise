@@ -1,5 +1,5 @@
 import React, { useState, useContext, useMemo } from "react";
-import http from "../api/http";
+import { createCategory, updateCategory, deleteCategory } from "../api/categories";
 import {
   Box,
   Typography,
@@ -36,7 +36,7 @@ const SUGGESTIONS = [
 const fieldSx = { "& .MuiOutlinedInput-root": { borderRadius: 2, backgroundColor: "#ffffff", fontSize: "14px" } };
 
 const NewCategory = () => {
-  const { categories, setCategories, emails, update, setUpdate } = useContext(emailContext);
+  const { categories, setCategories, emails, setUpdate } = useContext(emailContext);
   const [editingCategory, setEditingCategory] = useState(null);
   const [editedDescription, setEditedDescription] = useState("");
   const [isAdding, setIsAdding] = useState(false);
@@ -66,7 +66,6 @@ const NewCategory = () => {
           : "";
   const canCreate = !!trimmedName && !!description.trim() && !nameError && !busy;
 
-  const nextUpdate = () => parseInt(update || 1) + 1;
   const bumpUpdate = () => setUpdate((prev) => parseInt(prev || 1) + 1);
 
   const resetAddForm = () => {
@@ -81,13 +80,9 @@ const NewCategory = () => {
     setBusy("create");
     setError("");
     try {
-      const response = await http.post("/categories", {
-        newCategoryName: trimmedName,
-        newDescription: description.trim(),
-        update: nextUpdate(),
-      });
+      const created = await createCategory({ name: trimmedName, description: description.trim() });
       bumpUpdate();
-      setCategories((prev) => [...prev, response.data]);
+      setCategories((prev) => [...prev, created]);
       resetAddForm();
     } catch (err) {
       setError(err.response?.data?.error || "Could not create the category. Please try again.");
@@ -101,19 +96,14 @@ const NewCategory = () => {
     setBusy("edit");
     setError("");
     try {
-      const response = await http.put(`/categories/${encodeURIComponent(name)}`, {
-        newCategoryName: name,
-        newDescription: editedDescription.trim(),
-        update: nextUpdate(),
-      });
-      if (response.status === 200) {
-        const text = editedDescription.trim();
-        setCategories((prev) =>
-          prev.map((c) => (c.name === name ? { ...c, description: text, title: text } : c))
-        );
-        bumpUpdate();
-        setEditingCategory(null);
-      }
+      const target = categories.find((c) => c.name === name);
+      const text = editedDescription.trim();
+      await updateCategory(target.id, { description: text });
+      setCategories((prev) =>
+        prev.map((c) => (c.name === name ? { ...c, description: text, title: text } : c))
+      );
+      bumpUpdate();
+      setEditingCategory(null);
     } catch (err) {
       setError(err.response?.data?.error || "Could not save the description. Please try again.");
     } finally {
@@ -125,9 +115,8 @@ const NewCategory = () => {
     setBusy(`delete:${name}`);
     setError("");
     try {
-      await http.delete(`/categories/${encodeURIComponent(name)}`, {
-        data: { update: nextUpdate() },
-      });
+      const target = categories.find((c) => c.name === name);
+      await deleteCategory(target.id);
       bumpUpdate();
       setCategories((prev) => prev.filter((c) => c.name !== name));
       setConfirmDelete(null);

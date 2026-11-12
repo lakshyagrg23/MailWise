@@ -1,6 +1,8 @@
 import { issueOAuthState } from '../../utils/session.js';
+import { createOAuth2Client } from '../../services/googleAuthService.js';
 
-export const url = (oauth2Client) => (req, res) => {
+export const url = (req, res) => {
+    const oauth2Client = createOAuth2Client();
     const state = issueOAuthState(res);
     const authUrl = oauth2Client.generateAuthUrl({
         access_type: 'offline',

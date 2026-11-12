@@ -1,18 +1,13 @@
 import axios from 'axios';
-import prisma from '../../prisma.js';
+import prisma from '../../lib/prisma.js';
 import { createSession, consumeOAuthState } from '../../utils/session.js';
+import { createOAuth2Client } from '../../services/googleAuthService.js';
+import { DEFAULT_CATEGORIES } from '../../utils/categories.js';
+import { env } from '../../config/env.js';
 
-const defaultCategories = [
-    { name: "Essential", description: "Important career, academic, or life updates such as job offers, exam schedules, etc." },
-    { name: "Social", description: "Personal communications and social media notifications." },
-    { name: "Promotions", description: "Marketing, sales, and product launch announcements." },
-    { name: "Updates", description: "Order status, service updates, or time-sensitive event notifications." },
-    { name: "Finance", description: "Banking, billing, investment updates." },
-    { name: "Subscriptions", description: "Regular newsletters, content updates from subscribed services." },
-    { name: "Miscellaneous", description: "Everything else." }
-];
-
-export const callback = (oauth2Client) => async (req, res) => {
+export const callback = async (req, res) => {
+    // One client per request: setCredentials mutates it, so it must never be shared
+    const oauth2Client = createOAuth2Client();
     try {
         if (!consumeOAuthState(req, res)) {
             return res.status(400).send("Invalid OAuth state");
@@ -98,23 +93,21 @@ export const callback = (oauth2Client) => async (req, res) => {
 
         // Start a server-side session; no credentials or identifiers go in the URL
         createSession(res, userId);
-        return res.redirect(`${process.env.FRONTEND_URL}/emails/inbox`);
+        return res.redirect(`${env.frontendUrl}/emails/inbox`);
     } catch (error) {
         console.error("Error during OAuth callback:", error);
         return res.status(500).send("Authentication failed");
     }
 };
 
-// Ensure insertDefaultCategories is defined somewhere
 async function insertDefaultCategories(userId) {
     try {
-        const categoriesData = defaultCategories.map(category => ({
-            user_id: parseInt(userId),
-            category_name: category.name,
-            category_description: category.description
-        }));
         await prisma.categoryPreference.createMany({
-            data: categoriesData,
+            data: DEFAULT_CATEGORIES.map(c => ({
+                user_id: userId,
+                category_name: c.name,
+                category_description: c.description
+            })),
             skipDuplicates: true
         });
         console.log(`Default categories inserted for user ${userId}`);
