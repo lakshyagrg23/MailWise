@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Typography, Button } from '@mui/material';
 import MailOutlineIcon from '@mui/icons-material/MailOutline';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import { Refresh } from '../Refresh';
+import { Refresh } from './Refresh';
 
 const NoMails = () => {
   return (

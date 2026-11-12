@@ -1,6 +1,6 @@
-import { logout as apiLogout } from "../api/auth";
+import { logout as apiLogout } from "../../api/auth";
 import React, { useState, useContext, useEffect, useRef } from "react";
-import { emailContext } from "../App";
+import { emailContext } from "../../context/emailContext";
 import { motion, AnimatePresence } from "framer-motion";
 import { Avatar, Box, Typography, Button, IconButton, Tooltip } from "@mui/material";
 import HelpOutlineIcon from "@mui/icons-material/HelpOutline";

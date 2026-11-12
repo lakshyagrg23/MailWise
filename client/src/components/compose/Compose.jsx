@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useRef, useState } from 'react';
-import { sendEmail } from '../api/emails';
-import { saveDraft as saveDraftApi, deleteDraft } from '../api/drafts';
+import { sendEmail } from '../../api/emails';
+import { saveDraft as saveDraftApi, deleteDraft } from '../../api/drafts';
 import {
   Box,
   Button,
@@ -21,8 +21,8 @@ import DeleteOutlineOutlinedIcon from '@mui/icons-material/DeleteOutlineOutlined
 import SendIcon from '@mui/icons-material/Send';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import CheckIcon from '@mui/icons-material/Check';
-import { emailContext } from '../App';
-import Auto_email from './Auto_email';
+import { emailContext } from '../../context/emailContext';
+import AutoEmail from './AutoEmail';
 
 const AUTOSAVE_DELAY_MS = 2500;
 const FONT = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
@@ -470,7 +470,7 @@ const Compose = ({ openDialog, setOpenDialog }) => {
         }}
       >
         <DialogContent sx={{ p: 2 }}>
-          <Auto_email />
+          <AutoEmail />
         </DialogContent>
       </Dialog>
     </>

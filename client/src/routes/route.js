@@ -1,8 +1,8 @@
 /* eslint-disable no-unused-vars */
 import { lazy } from "react"
 const Main=lazy(()=>import('../pages/Main'));
-const Email=lazy(()=>import('../components/Email'));
-const ViewEmails=lazy(()=>import('../components/ViewEmails'))
+const Email=lazy(()=>import('../pages/Email'));
+const ViewEmails=lazy(()=>import('../pages/ViewEmails'))
 
 
 export const routes={

@@ -1,9 +1,9 @@
 import React, { Suspense, useEffect, useState } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { Box, useMediaQuery } from "@mui/material";
-import Header from "../components/Header";
-import SideBar, { SIDEBAR_WIDTH } from "../components/SideBar";
-import SuspenseLoader from "../components/error/SuspenseLoader";
+import Header from "../components/layout/Header";
+import SideBar, { SIDEBAR_WIDTH } from "../components/layout/SideBar";
+import SuspenseLoader from "../components/common/SuspenseLoader";
 
 const HEADER_HEIGHT = 64;
 

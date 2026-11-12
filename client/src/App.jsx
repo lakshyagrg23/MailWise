@@ -1,18 +1,17 @@
 /* eslint-disable no-unused-vars */
-import React, { Suspense, useEffect, useState, createContext, lazy } from 'react';
+import React, { Suspense, useEffect, useState, lazy } from 'react';
 import { Navigate, Route, createBrowserRouter, createRoutesFromElements, RouterProvider } from 'react-router-dom';
 import GmailOAuthApp from './GmailOAuthApp';
 import { listEmails, syncEmails } from './api/emails';
 import { getMe } from './api/auth';
 import { setUnauthorizedHandler } from './api/http';
-import Error from './components/error/Error';
-import SuspenseLoader from './components/error/SuspenseLoader';
+import { emailContext } from './context/emailContext';
+import Error from './components/common/Error';
+import SuspenseLoader from './components/common/SuspenseLoader';
 
 const Main = lazy(() => import('./pages/Main'));
-const Email = lazy(() => import('./components/Email'));
-const ViewEmails = lazy(() => import('./components/ViewEmails'));
-
-export const emailContext = createContext();
+const Email = lazy(() => import('./pages/Email'));
+const ViewEmails = lazy(() => import('./pages/ViewEmails'));
 
 // Redirect targets must be absolute. A relative target inside the catch-all
 // resolves against the current URL and re-matches the catch-all forever

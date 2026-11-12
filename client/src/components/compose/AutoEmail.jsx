@@ -1,5 +1,5 @@
 import React, { useState, useContext } from 'react';
-import { composeEmail } from '../api/ai';
+import { composeEmail } from '../../api/ai';
 import {
   Box,
   Typography,
@@ -12,9 +12,9 @@ import {
   CircularProgress
 } from '@mui/material';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
-import { emailContext } from '../App';
+import { emailContext } from '../../context/emailContext';
 
-const Auto_email = () => {
+const AutoEmail = () => {
     const { setData, setOpenAi } = useContext(emailContext);
     const [type, setType] = useState('formal');
     const [description, setDescription] = useState('');
@@ -112,4 +112,4 @@ const Auto_email = () => {
     );
 };
 
-export default Auto_email;
+export default AutoEmail;

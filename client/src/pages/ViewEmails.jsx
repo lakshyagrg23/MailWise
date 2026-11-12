@@ -17,9 +17,9 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import DownloadIcon from '@mui/icons-material/Download';
-import Emailbody from './Emailbody';
-import { emailContext } from "../App";
-import { getRandomColor } from '../content/getColor';
+import EmailBody from '../components/mail/EmailBody';
+import { emailContext } from "../context/emailContext";
+import { getRandomColor } from '../utils/getColor';
 import dayjs from 'dayjs';
 
 const formatSize = (bytes) => {
@@ -305,7 +305,7 @@ const ViewEmails = () => {
             <Typography sx={{ fontSize: '14px', color: '#64748b' }}>Loading email content...</Typography>
           </Box>
         ) : (
-          <Emailbody email={{ ...email, body: emailBody }} />
+          <EmailBody email={{ ...email, body: emailBody }} />
         )}
 
         {/* Attachments Section */}

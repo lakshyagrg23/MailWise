@@ -1,8 +1,8 @@
 import React from "react";
 import { Box, Typography, Avatar, List, ListItem } from "@mui/material";
 import { useNavigate } from "react-router-dom";
-import { routes } from "../routes/route";
-import { getRandomColor } from "../content/getColor";
+import { routes } from "../../routes/route";
+import { getRandomColor } from "../../utils/getColor";
 import dayjs from "dayjs";
 
 const SearchResults = ({ emails, searchQuery, setShowSearchResults, category }) => {

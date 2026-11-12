@@ -23,13 +23,13 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
-import NewCategory from "./NewCategory";
-import Compose from "./Compose";
+import NewCategory from "../categories/NewCategory";
+import Compose from "../compose/Compose";
 import { NavLink } from "react-router-dom";
-import { routes } from "../routes/route";
-import { emailContext } from "../App";
-import { getRandomColor } from "../content/getColor";
-import { listCategories } from "../api/categories";
+import { routes } from "../../routes/route";
+import { emailContext } from "../../context/emailContext";
+import { getRandomColor } from "../../utils/getColor";
+import { listCategories } from "../../api/categories";
 
 // Gmail-derived buckets: low priority, grouped and collapsed by default
 const FILTERED = ["Promotions", "Social", "Spam"];

@@ -1,6 +1,6 @@
 import React, { useState, useContext, useEffect, useRef } from "react";
-import OptionsMenu from "./Optionsmenu";
-import SearchResults from "./SearchResults";
+import OptionsMenu from "./OptionsMenu";
+import SearchResults from "../mail/SearchResults";
 import {
     AppBar,
     Box,
@@ -20,8 +20,8 @@ import CloseIcon from "@mui/icons-material/Close";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import MailOutlineRoundedIcon from "@mui/icons-material/MailOutlineRounded";
 import { useNavigate } from "react-router-dom";
-import { routes } from "../routes/route";
-import { emailContext } from "../App";
+import { routes } from "../../routes/route";
+import { emailContext } from "../../context/emailContext";
 
 const StyleAppBar = styled(AppBar)`
     background-color: #ffffff;

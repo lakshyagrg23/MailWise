@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { styled } from '@mui/material';
 import { motion } from 'framer-motion';
-import { formatEmailBody } from '../utils/formatEmailBody';
+import { formatEmailBody } from '../../utils/formatEmailBody';
 
 const StyledBody = styled(motion.div)({
     fontSize: '14.5px',

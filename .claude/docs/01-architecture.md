@@ -57,7 +57,7 @@ There is no queue, cache, worker, or scheduler: everything runs inline in the re
 4. `cookieParser()` (L41), `express.json()` (L42; default 100 kb limit).
 5. Router mounting (L45-53):
 
-> **Updated after the routing restructure.** Sections below that cite `getEmailsByCategory.js`, `emailListRoutes.js`, `emailActionRoutes.js`, `helpFunctions/` or old `/fetch-email(s)`, `/email(s)` paths describe the pre-restructure code; the endpoint contract in section 8 and this table are current.
+> **Updated after the routing and folder restructure (file moves: `utils/` split into `utils/http` and `utils/gmail`, `controllers/{drafts,sent,ai}`, `services/syncService.js`, `config/`, `lib/`, `validators/`).** Sections below that cite `getEmailsByCategory.js`, `emailListRoutes.js`, `emailActionRoutes.js`, `helpFunctions/` or old `/fetch-email(s)`, `/email(s)` paths describe the pre-restructure code; the endpoint contract in section 8 and this table are current.
 
 | Mount | Middleware chain | Router |
 |---|---|---|
@@ -247,14 +247,14 @@ All endpoints except `/auth/*` and `/webhook/*` need the session cookie (401 oth
 | POST | `/api/v1/emails/sync` | cookie | syncLimiter 30/min/user | `emails/syncEmails.js` | Gmail pull + Gemini classify + read/star reconcile; `{newEmails}` |
 | POST | `/api/v1/emails/send` | cookie | none | `emails/sendEmail.js` | flat `{to, subject, body, cc?, bcc?, draftId?}` |
 | GET | `/api/v1/emails/:emailId` | cookie | none | `emails/getEmailById.js` | body live from Gmail; attachments as metadata `{partId, filename, mimeType, size}` (recursive MIME walk) |
-| GET | `/api/v1/emails/:emailId/attachments/:partId` | cookie | attachmentLimiter 60/min | `emails/getAttachment.js` | binary download; `Content-Disposition: attachment`, `nosniff`, 25 MB cap; helpers in `utils/attachments.js` |
+| GET | `/api/v1/emails/:emailId/attachments/:partId` | cookie | attachmentLimiter 60/min | `emails/getAttachment.js` | binary download; `Content-Disposition: attachment`, `nosniff`, 25 MB cap; helpers in `utils/gmail/attachments.js` |
 | PATCH | `/api/v1/emails/:emailId` | cookie | none | `emails/updateEmail.js` | `{is_read?, is_starred?}`; mirrors Gmail labels best-effort |
 | POST | `/api/v1/emails/:emailId/summary` | cookie | summarizeLimiter 60/min | `emails/summarizeEmail.js` | generates (Gemini) or returns cached summary |
 | DELETE | `/api/v1/emails` | cookie | none | `emails/clearUserEmails.js` | unused by the client; demo preserved |
-| GET | `/api/v1/sent?pageToken=` | cookie | none | `emails/listSentEmails.js` | live Gmail |
-| GET/POST | `/api/v1/drafts` | cookie | none | `emails/drafts.js` | list (live Gmail) / create (201) |
-| GET/PUT/DELETE | `/api/v1/drafts/:draftId` | cookie | none | `emails/drafts.js` | PUT recreates if the draft vanished (201) |
-| POST | `/api/v1/ai/compose` | cookie | aiDraftLimiter 20/min | `emails/generateAiEmail.js` | `{type, details}` -> `{subject, body}` |
+| GET | `/api/v1/sent?pageToken=` | cookie | none | `sent/listSentEmails.js` | live Gmail |
+| GET/POST | `/api/v1/drafts` | cookie | none | `drafts/drafts.js` | list (live Gmail) / create (201) |
+| GET/PUT/DELETE | `/api/v1/drafts/:draftId` | cookie | none | `drafts/drafts.js` | PUT recreates if the draft vanished (201) |
+| POST | `/api/v1/ai/compose` | cookie | aiDraftLimiter 20/min | `ai/generateAiEmail.js` | `{type, details}` -> `{subject, body}` |
 | GET/POST | `/api/v1/categories` | cookie | none | `categories/*` | `{id, name, description}`; reserved view names rejected (400); duplicate name -> 409 |
 | PATCH/DELETE | `/api/v1/categories/:categoryId` | cookie | none | `categories/*` | keyed by id; PATCH `{name?, description?}` (a rename re-labels stored emails in one transaction); DELETE -> 204 (does not touch stored emails) |
 | POST | `/webhook/gmail` | Pub/Sub OIDC JWT | none | `webhook/gmailWebhook.js` | Google Pub/Sub, not the client |

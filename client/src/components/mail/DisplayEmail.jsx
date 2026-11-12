@@ -1,5 +1,5 @@
 import React, { useState, useContext } from 'react';
-import { emailContext } from '../App';
+import { emailContext } from '../../context/emailContext';
 import { Typography, Box, styled, Tooltip, Avatar, IconButton } from "@mui/material";
 import AttachFileIcon from '@mui/icons-material/AttachFile';
 import StarRoundedIcon from '@mui/icons-material/StarRounded';
@@ -10,12 +10,12 @@ import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import CloseIcon from '@mui/icons-material/Close';
 import CircularProgress from '@mui/material/CircularProgress';
 import { useNavigate } from 'react-router-dom';
-import { routes } from '../routes/route';
-import { getRandomColor } from '../content/getColor';
+import { routes } from '../../routes/route';
+import { getRandomColor } from '../../utils/getColor';
 import { motion, AnimatePresence } from 'framer-motion';
 import dayjs from 'dayjs';
-import { updateEmail, summarizeEmail } from '../api/emails';
-import { getDraft } from '../api/drafts';
+import { updateEmail, summarizeEmail } from '../../api/emails';
+import { getDraft } from '../../api/drafts';
 
 
 const EmailRow = styled(Box)`

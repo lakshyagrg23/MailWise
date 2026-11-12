@@ -1,5 +1,5 @@
 import React, { useState, useContext, useMemo } from "react";
-import { createCategory, updateCategory, deleteCategory } from "../api/categories";
+import { createCategory, updateCategory, deleteCategory } from "../../api/categories";
 import {
   Box,
   Typography,
@@ -17,8 +17,8 @@ import CloseIcon from "@mui/icons-material/Close";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import LabelOutlinedIcon from "@mui/icons-material/LabelOutlined";
-import { emailContext } from "../App";
-import { getRandomColor } from "../content/getColor";
+import { emailContext } from "../../context/emailContext";
+import { getRandomColor } from "../../utils/getColor";
 
 // Names that are built-in views/buckets, not user categories
 const RESERVED = ["all", "inbox", "starred", "sent", "drafts", "promotions", "social", "spam"];

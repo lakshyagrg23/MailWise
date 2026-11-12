@@ -1,3 +1,5 @@
+> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
+
 # 07 - Frontend (client/)
 
 Scope: everything under `client/src` (about 3,560 lines, 31 files), plus `client/package.json`, `vite.config.js`, `eslint.config.js`, `index.html`, `nginx.conf`.
@@ -7,7 +9,9 @@ Related docs: [01-architecture.md](01-architecture.md), [02-auth-security.md](02
 
 ---
 
-## 1. Summary
+#> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
+
+# 1. Summary
 
 A small React 19 SPA (Vite 6, react-router 7.6, MUI 7, a little Tailwind 4) with one 17-field context in `App.jsx`, no tests, and a lot of repeated inline-styled MUI. Functionally it is clean enough. The main problems are:
 
@@ -19,7 +23,9 @@ A small React 19 SPA (Vite 6, react-router 7.6, MUI 7, a little Tailwind 4) with
 
 ---
 
-## 2. Drift from the root CLAUDE.md (auth and API calls)
+#> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
+
+# 2. Drift from the root CLAUDE.md (auth and API calls)
 
 The root `CLAUDE.md` says the client stores `mailwise_token` / `mailwise_user_id` in `localStorage` and sends `?access_token=` plus `user_id` on every call. **That is stale.**
 
@@ -36,9 +42,13 @@ No CSRF token is sent. Cookie-session plus `withCredentials` means CSRF protecti
 
 ---
 
-## 3. Bootstrap, routing, layout
+#> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
 
-### 3.1 Boot sequence
+# 3. Bootstrap, routing, layout
+
+##> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
+
+# 3.1 Boot sequence
 
 1. `src/main.jsx:6-10`: `StrictMode` then `<App/>`. `index.css` imports Tailwind.
 2. `App.jsx` renders inside `<Suspense fallback={<SuspenseLoader/>}>` and the context provider. Three states (`App.jsx:127-133`):
@@ -47,14 +57,18 @@ No CSRF token is sent. Cookie-session plus `withCredentials` means CSRF protecti
    - authenticated: `<RouterProvider router={router}/>`.
 3. After `authenticated` flips true, an effect calls `fetchEmailData(category)`, which calls `GET /fetch-emails/All`. This is the ingestion endpoint ([03-ingestion-classification.md](03-ingestion-classification.md)), so first paint of the inbox waits on Gmail list, fetch and Gemini classification.
 
-### 3.2 GmailOAuthApp.jsx
+##> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
+
+# 3.2 GmailOAuthApp.jsx
 
 - **[Verified]** It is used. It is the unauthenticated screen (`App.jsx:4,130`), not dead code. It is a 206-line marketing/login page (framer-motion + lucide-react + Tailwind classes).
 - **[Verified]** It receives the `setAuthenticated` prop but never uses it (the OAuth flow leaves the SPA by full redirect). Harmless dead prop.
 - **[Verified]** Login failure (`/auth/url` rejected) only `console.error`s and re-enables the button (lines 15-17). The user sees nothing.
 - Name drift: the file is `GmailOAuthApp`, the component is `MailWiseLogin`. Rename to `Login.jsx`.
 
-### 3.3 Router
+##> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
+
+# 3.3 Router
 
 - **[Verified]** `createBrowserRouter` is built at module level (`App.jsx:22-33`), with `createRoutesFromElements`:
   ```
@@ -69,14 +83,18 @@ No CSRF token is sent. Cookie-session plus `withCredentials` means CSRF protecti
 - **[Verified]** The router only exists inside the authenticated branch, so `/` and every deep link are shown only after `/auth/me` returns. Fine for this app. There is no route-level auth guard.
 - `ViewEmails` relies on `location.state.email` (`ViewEmails.jsx:27-28`). A page reload on `/view` loses the state and shows "No email selected." There is no `/view/:emailId` route. **[Verified]**, and a UX limitation (no shareable or reloadable email URL).
 
-### 3.4 URL versus context for the active category (a real bug)
+##> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
+
+# 3.4 URL versus context for the active category (a real bug)
 
 - **[Verified]** The sidebar link `NavLink to=/emails/${name}` also calls `setCategory(name)` in `onClick` (`SideBarContent.jsx:145-148`).
 - **[Verified]** `Email.jsx` never calls `useParams`. It filters by the context `category` (`Email.jsx:32-40`).
 - Consequences **[Verified by reading]**: loading `/emails/Finance` directly, using the browser back/forward buttons, or reloading shows the right URL but the wrong list (context `category` resets to "All" on reload). Sidebar highlighting uses `useParams().type` (`SideBarContent.jsx:141`), so highlight and list disagree.
 - Fix: derive the category from `useParams()` inside `Email.jsx` and delete `category` / `setCategory` from the context. See section 10.
 
-### 3.5 Layout (pages/Main.jsx)
+##> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
+
+# 3.5 Layout (pages/Main.jsx)
 
 - `Main` owns `openDrawer` (local `useState`) and passes it to `SideBar` and via `<Outlet context={{openDrawer}}/>`. Both consumers (`Email.jsx:24`, `ViewEmails.jsx:29`) destructure it and never use it (lint errors). **[Verified]**
 - The layout is `100vh/100vw`, fixed `HEADER_HEIGHT = 64`, sidebar width 270 duplicated in `Main.jsx:9` and `SideBar.jsx:5` and hard-coded `64px` in `SideBar.jsx:20-21`. **[Opportunity]** Share constants.
@@ -85,11 +103,15 @@ No CSRF token is sent. Cookie-session plus `withCredentials` means CSRF protecti
 
 ---
 
-## 4. The emailContext (App.jsx:14, 35-54, 117-126)
+#> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
+
+# 4. The emailContext (App.jsx:14, 35-54, 117-126)
 
 A single `createContext()` (no default value, so a consumer outside the provider destructures `undefined` and crashes) with a fresh object literal as `value` on every `App` render. Every `useContext(emailContext)` consumer re-renders whenever any `App` state changes, because the `value` identity changes each render and nothing is memoized. **[Verified]**
 
-### 4.1 Every state value, who reads and writes it
+##> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
+
+# 4.1 Every state value, who reads and writes it
 
 | State (setter) | Written by | Read by | Notes |
 |---|---|---|---|
@@ -114,22 +136,30 @@ A single `createContext()` (no default value, so a consumer outside the provider
 
 **[Verified]** Dead values: `selectedEmails`, `date`, `newMailsLoaded`, `mailsReceived`, `message` (5 of 17 are never read or written by any component). `fetchEmailData`, `setAuthenticated`, `setName`, `setEmail`, `setPicture`, `setSelectedUser`, `setLoaded` are exposed but unused outside `App`. Grep for each name across `src/components` and `src/pages` confirms this.
 
-### 4.2 Re-render implications (small app, so keep this proportionate)
+##> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
+
+# 4.2 Re-render implications (small app, so keep this proportionate)
 
 - With about 16 `useContext` consumers and lists capped by the server's 30-email ingestion window plus stored history, a context-wide re-render is **not currently a measurable problem**. The costly consumers are `Email` (paginated to at most 50 rows) and `SideBarContent` (counts computed by 1 filter per category per render, `SideBarContent.jsx:32-38`).
 - But: typing in Compose calls `setData` which updates `App` state, re-renders `App`, a new `value` object, and every consumer, including the email list on each keystroke. **[Verified by reading]**, **[Risk]** (likely sluggish typing once the list is large; each row has MUI `styled`, Tooltips, framer-motion).
 - `App` itself holds the router-level `RouterProvider`. `router` is module-level, so `App` re-renders do not recreate it. Good (`App.jsx:21`).
 
-### 4.3 Coupling
+##> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
+
+# 4.3 Coupling
 
 - Components import the context from `../App` (`App.jsx` exports a component and a context, which is why eslint warns `react-refresh/only-export-components` at `App.jsx:14`). Circular-ish import: `App` lazy-imports `Email`, `Email` imports `{emailContext}` from `App`. Works because of lazy loading, but fragile. **[Verified]**
 - Server-state (emails, categories, user) and UI-state (modal open, compose form, success banner) are mixed in one object.
 
 ---
 
-## 5. Data-fetching layer
+#> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
 
-### 5.1 api/http.js and api/api.js
+# 5. Data-fetching layer
+
+##> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
+
+# 5.1 api/http.js and api/api.js
 
 - **[Verified]** `http.js` is the only axios instance; every component imports it directly except `fetchEmails` (`api/api.js`, 19 lines, used only by `App.jsx:5,106`).
 - **[Verified]** `api.js:13-16` swallows every error and returns `{emails: []}`. The UI then shows "no mails" (the `NoMails` empty state) for a network failure, a 500, or an ingestion timeout. `loaded` is set to true regardless (`App.jsx:112`). A user cannot distinguish "empty inbox" from "backend down". **[Risk]**
@@ -153,14 +183,18 @@ A single `createContext()` (no default value, so a consumer outside the provider
 - **[Verified]** Send failure is only `console.error`ed (`Compose.jsx:90-95`). The dialog stays open with no message and no pending state (no double-click guard on Send). **[Risk]**
 - Error-handling pattern throughout: `try { await http... } catch (e) { console.error(...) }`, in 10 places. There is no toast, no inline error, no retry, and `react-hot-toast` is installed but never imported (section 9). **[Verified]**
 
-### 5.2 api/api.url.js and routes/route.js
+##> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
+
+# 5.2 api/api.url.js and routes/route.js
 
 - **[Verified]** `api/api.url.js` (26 lines, `API_URLS`: save, bin, starred, delete...) has no importer (`grep API_URLS` finds only its own definition). Dead, and it describes endpoints that do not exist.
 - **[Verified]** `routes/route.js` is imported only for its `.path` strings (`DisplayEmail.jsx:8`, `SearchResults.jsx:4`, `SideBarContent.jsx:17`). It also eagerly defines three `lazy()` components that nothing uses (`element:` values), and `routes.email.path = '/emails'` while `routes.invalid`/`main` are unused. Replace with two string constants or just literals. Note `lazy()` at import time is harmless but misleading.
 
 ---
 
-## 6. Component inventory (size, responsibility, smells)
+#> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
+
+# 6. Component inventory (size, responsibility, smells)
 
 Line counts from `wc -l`.
 
@@ -187,7 +221,9 @@ Line counts from `wc -l`.
 | `content/SideBar.content.js` | 38 | Static category list | **[Verified]** Not imported anywhere (dead). |
 | `utils/formatEmailBody.js` | 88 | Sanitizer | Good; has an injectable factory "so it can be tested under jsdom" but there are no tests. |
 
-### 6.1 Duplication (all **[Verified]**)
+##> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
+
+# 6.1 Duplication (all **[Verified]**)
 
 - Sender display-name parsing, `senderRaw.includes('<') ? senderRaw.split('<')[0].replace(/['"]/g,'').trim() : senderRaw`, appears in `DisplayEmail.jsx:111-113`, `ViewEmails.jsx` (about line 98-100), `SearchResults.jsx:64-65`.
 - Rich-summary check `includes('•') || includes('Action Item:')` appears 4 times: `DisplayEmail.jsx:105,129`, `ViewEmails.jsx:38,107` (see 6.3).
@@ -196,14 +232,18 @@ Line counts from `wc -l`.
 - The design tokens (`#2563eb`, `#e2e8f0`, `#64748b`, `#0f172a`, `#f1f5f9`...) are hard-coded as hex literals in virtually every component (hundreds of occurrences); there is no MUI `createTheme` and no `ThemeProvider` (grep confirms neither is used). Buttons restyle `textTransform: 'none'`, `borderRadius`, hover colour each time. **[Opportunity]** One `theme.js` would delete most of the `sx` noise.
 - `'Inter'` is used as font-family in many places, but `index.html:8` loads only IBM Plex Serif and Merriweather from Google Fonts. **[Verified]** Inter is never loaded, so it silently falls back to `sans-serif`; the two loaded fonts are not used by any code I read. (Check: `grep -rn "Plex\|Merriweather" src` is empty.)
 
-### 6.2 Fetch and refresh model (what happens when)
+##> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
+
+# 6.2 Fetch and refresh model (what happens when)
 
 - **[Verified]** Emails are fetched exactly once per session by the `App.jsx:97-101` effect, whose guard `emails.length === 0` also means: if the first fetch legitimately returns zero emails, changing `category` or `selectedUser` re-triggers the fetch (and re-triggers ingestion on the server) each time. Changing category does not refetch for non-empty lists, because the list is client-filtered. The first call always asks for `All`.
 - **[Verified]** To see new mail, the user must reload the page (`Refresh`). The server's push work ([06-gmail-push-webhook.md](06-gmail-push-webhook.md)) has no client counterpart (no polling, no SSE, no websocket; the `websocket` npm package is unused).
 - **[Verified]** Category count badges (`SideBarContent.jsx:32-38`) count loaded emails only (those held in memory), not DB totals.
 - **[Verified]** After category edit/delete, `NewCategory` updates only `categories`. Existing emails keep their stale category string in `emails` (matches the server-side caveat in the root CLAUDE.md), and `handleSave` ("Apply & Refresh") reloads the page. See [05-data-layer.md](05-data-layer.md).
 
-### 6.3 Snippet-vs-summary convention on the client
+##> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
+
+# 6.3 Snippet-vs-summary convention on the client
 
 `emailsummary` is either a short snippet or an AI summary. The client tells them apart by substring `•` or `Action Item:`:
 
@@ -216,7 +256,9 @@ Line counts from `wc -l`.
 
 ---
 
-## 7. XSS handling of email HTML
+#> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
+
+# 7. XSS handling of email HTML
 
 Rendering: `Emailbody.jsx:454-460` uses `dangerouslySetInnerHTML={{ __html: html }}` where `html` comes only from `formatEmailBody` (`utils/formatEmailBody.js`). This is the right place to concentrate trust. **[Verified]** the only `dangerouslySetInnerHTML` in `src` (grep).
 
@@ -245,9 +287,13 @@ Assessment:
 
 ---
 
-## 8. Search, pagination, states, accessibility
+#> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
 
-### 8.1 Search
+# 8. Search, pagination, states, accessibility
+
+##> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
+
+# 8.1 Search
 
 - **[Verified]** Pure client-side, in-memory, run during render of `SearchResults` (`SearchResults.jsx:13-25`). Every keystroke in `Header` re-renders `Header` (local state) and re-filters. No debounce, no memo, no result cap (the dropdown renders all matches).
 - **[Verified]** It searches `subject`, `sender`, and `email.body || email.emailsummary`. `email.body` is **never** present on list items (only metadata is stored, see root CLAUDE.md and [05-data-layer.md](05-data-layer.md)), so body search is effectively "snippet / AI summary only". The placeholder "Search emails by subject, sender, or content..." overpromises. **[Risk]** (expectation mismatch).
@@ -255,13 +301,17 @@ Assessment:
 - Whole-word AND semantics via `split(" ")`; no highlight; result click navigates to `/view` with state. `Escape` does not close the dropdown; the dropdown closes only on outside `mousedown`. **[Verified]**
 - Verdict: adequate for the dataset size. **[Opportunity]** `useDeferredValue` plus cap of 20 results is a cheap win. Server-side search is not needed unless history grows.
 
-### 8.2 Pagination / infinite scroll
+##> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
+
+# 8.2 Pagination / infinite scroll
 
 - **[Verified]** No infinite scroll. Client-side paging over the already-fetched array: page size 10/25/50 (`Email.jsx:29`, selector `:145-165`), prev/next only, resets to page 1 on category/length change (`:43-45`), `validCurrentPage` clamps out-of-range pages. Footer pager shown only when `totalCount > pageSize`.
 - **[Verified]** The server returns the whole stored set for the user and category (see `getEmailsByCategory.js:21-26` demo path `findMany` without `take`; the real path similarly returns stored rows). There is no cursor/limit contract. At thousands of emails the payload, `new Date()` sort on every filter change (`Email.jsx:39`), and sidebar counts get heavy. **[Risk]** at scale; see [09-scalability-reliability.md](09-scalability-reliability.md). Server-side pagination would require a new query contract; not needed yet.
 - The page-size and page state are local to `Email` and are lost when navigating to `/view` and back (state resets to page 1/25). **[Verified]** (annoying UX: reading item 20 then going back returns to page 1).
 
-### 8.3 Loading / error / empty states
+##> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
+
+# 8.3 Loading / error / empty states
 
 | Surface | Loading | Error | Empty |
 |---|---|---|---|
@@ -274,7 +324,9 @@ Assessment:
 
 **[Verified]** Error states are essentially absent. The project already contains `react-hot-toast` (unused); a toast helper in the axios interceptor would cover most of this in under 30 lines. **[Opportunity]**
 
-### 8.4 Accessibility
+##> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
+
+# 8.4 Accessibility
 
 All **[Verified by reading]**:
 
@@ -288,14 +340,20 @@ All **[Verified by reading]**:
 
 ---
 
-## 9. Styling, dependencies, build
+#> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
 
-### 9.1 Styling mix
+# 9. Styling, dependencies, build
+
+##> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
+
+# 9.1 Styling mix
 
 - **[Verified]** Four mechanisms: (1) MUI `sx` prop (dominant), (2) MUI `styled()` template literals (`Header`, `DisplayEmail`, `Compose`, `Emailbody`), (3) Tailwind utility classes (`GmailOAuthApp.jsx`, `Optionsmenu.jsx`), (4) global `index.css` (16 lines; `App.css` is empty, 0 bytes, and unreferenced).
 - `Optionsmenu.jsx` is positioned `fixed top-3 right-4 z-50` (Tailwind) on top of the `Header` toolbar instead of inside it, which is fragile (it overlaps if the toolbar layout changes). **[Verified]**
 
-### 9.2 Tailwind setup is not what it seems
+##> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
+
+# 9.2 Tailwind setup is not what it seems
 
 - **[Verified]** `package.json` has `tailwindcss ^4.1.7` and `autoprefixer`/`postcss`, but there is no `@tailwindcss/vite` or `@tailwindcss/postcss` plugin, no `postcss.config.*`, no `tailwind.config.*`, and `vite.config.js` only loads the React SWC plugin.
 - **[Verified]** `src/index.css:1` has `@import "tailwindcss";` which, with no Tailwind plugin, is just Vite resolving the package's raw CSS (the `@tailwind`/`@theme` directives are not compiled).
@@ -303,7 +361,9 @@ All **[Verified by reading]**:
 - **[Risk]** (a) third-party runtime script with no integrity attribute on every page load (supply chain + `script-src` hole); (b) FOUC and runtime CPU; (c) offline/CDN-blocked clients lose all Tailwind styling (login page, options menu); (d) the CSP cannot be tightened while it exists.
 - **[Opportunity]** Either install `@tailwindcss/vite` and add it to `vite.config.js` (3-line change, then drop the CDN script and the jsdelivr CSP entry) or remove Tailwind altogether, because only two files use utility classes. Cheaper decision: since MUI already dominates, converting those 2 files to `sx` and dropping Tailwind completely removes `tailwindcss`, `autoprefixer`, `postcss` and the CDN script. Weighed either way: removal is less work long-term, the plugin is less work short-term. Cross-ref [08-devops-deployment.md](08-devops-deployment.md) (CSP/nginx).
 
-### 9.3 Dependency audit (each grepped over `src/`, `index.html`, `vite.config.js`)
+##> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
+
+# 9.3 Dependency audit (each grepped over `src/`, `index.html`, `vite.config.js`)
 
 | Package | Imported? | Verdict |
 |---|---|---|
@@ -330,16 +390,22 @@ All **[Verified by reading]**:
 
 **[Verified]** That is 14 safe-to-remove runtime dependencies: `three`, `@react-three/fiber`, `@react-three/drei`, `@syncfusion/ej2-react-notifications`, `websocket`, `react-hot`, `react-scripts`, `react-calendar`, `@mui/x-date-pickers`, `web-vitals`, the three `@testing-library/*`, and (if you decide to use the toast later, keep) `react-hot-toast`. Removal has no effect on the Vite bundle (unimported code is never bundled) but shrinks `npm install` time and the Docker build stage (`client/Dockerfile` runs `npm install`, not `npm ci`) and reduces vulnerability-scanner noise. **Do this removal as a package.json change plus lockfile regeneration; I did not touch it** (read-only task).
 
-### 9.4 Bundle size
+##> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
+
+# 9.4 Bundle size
 
 - A pre-existing `client/dist/assets` snapshot (dated Oct 25; it may be stale vs `src`, and I did not rebuild): main `index-*.js` about 545 KB (minified, before gzip), `Main` 61 KB, `Refresh` chunk 65 KB (MUI pieces shared into an oddly named chunk), `ViewEmails` 41 KB, `Email` 16 KB, `AutoAwesome` 57 KB (icon chunk mis-named, again shared MUI code), CSS about 20 KB. Total about 810 KB on disk.
 - **[Verified]** Route-level `lazy()` splitting exists (`App.jsx:10-12`), but `Main` pulls in nearly all of MUI so the main chunk is big. It is acceptable for a logged-in tool app. Nothing else here is worth chasing before removing the Tailwind CDN script and fixing the real issues.
 - `dist/` is not tracked (git ls-files found none), good.
 
-### 9.5 Vite config, env, lint, tests
+##> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
+
+# 9.5 Vite config, env, lint, tests
 
 - **[Verified]** `vite.config.js`: React SWC plugin; dev server `host: '0.0.0.0'`, `port: 3000`. No alias, no proxy, no build options, no `base`, no manual chunks. Exposing the dev server on all interfaces is convenient for Docker but exposes it on the LAN.
-- **[Verified]** Env: only `VITE_BACKEND_URL` (`http.js:3`), falling back to `http://localhost:5000`. `client/.env` exists with the value commented out (`# VITE_BACKEND_URL=`) and is untracked. In a production build, if the variable is not provided at build time the client silently targets `localhost:5000`, and Vite inlines the value at build time (so it must be passed as a build arg in the frontend host, e.g., Amplify). The client `Dockerfile` does not declare an `ARG VITE_BACKEND_URL`, so the local nginx image would also call `localhost:5000`, which only works from the host browser. **[Risk]** See [08-devops-deployment.md](08-devops-deployment.md). The nginx CSP hard-codes `connect-src ... http://localhost:5000 https:`.
+- **[Verified]** Env: only `VITE_BACKEND_URL` (`http.js:3`), falling back to `http://localhost:5000`. `client/.env` exists with the value commented out (`> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
+
+# VITE_BACKEND_URL=`) and is untracked. In a production build, if the variable is not provided at build time the client silently targets `localhost:5000`, and Vite inlines the value at build time (so it must be passed as a build arg in the frontend host, e.g., Amplify). The client `Dockerfile` does not declare an `ARG VITE_BACKEND_URL`, so the local nginx image would also call `localhost:5000`, which only works from the host browser. **[Risk]** See [08-devops-deployment.md](08-devops-deployment.md). The nginx CSP hard-codes `connect-src ... http://localhost:5000 https:`.
 - **[Verified]** ESLint (flat config, `eslint.config.js`): `@eslint/js` recommended + react-hooks + react-refresh. Missing `eslint-plugin-react` (`jsx-uses-vars`), so `no-unused-vars` flags `motion` in files where it is used as `<motion.div>`. The pattern `varsIgnorePattern: '^[A-Z_]'` is the Vite template's workaround for JSX components, and lowercase `motion` falls outside it. I ran `npx eslint src` read-only (node_modules present): **14 problems (8 errors, 6 warnings)**:
   - True positives: unused `motion` (`Email.jsx:21`, `SideBarContent.jsx:20`), unused `openDrawer` (`Email.jsx:24`, `ViewEmails.jsx:29`), unused `setEmail` (`ViewEmails.jsx:32`), unused `isRichSummary` (`ViewEmails.jsx:107`).
   - False positives: `motion` in `GmailOAuthApp.jsx:3` and `Optionsmenu.jsx:4` (used as JSX member expressions).
@@ -348,7 +414,9 @@ All **[Verified by reading]**:
 - **[Verified]** No tests: no `test` script, no vitest/jest config, no `*.test.*`/`__tests__` files; testing-library packages installed but unused. No CI step runs lint or build for the client (see [08](08-devops-deployment.md)). The sanitizer and the summary-detection helper are the two best candidates for first tests (pure functions).
 - **[Verified]** Language: JS only; `@types/react*` installed but there is no TS or JSDoc type checking.
 
-### 9.6 Naming and file conventions
+##> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
+
+# 9.6 Naming and file conventions
 
 - Mixed casing: `Auto_email.jsx` (snake), `Emailbody.jsx` and `Optionsmenu.jsx` (lowercase second word; the component is named `EmailBody`/`OptionsMenu`, while the import path is lowercase), `SideBar.content.js`, `getColor.js` exporting `getRandomColor`, `GmailOAuthApp.jsx` exporting `MailWiseLogin`, `setmessageSent`. Also `components/error/Error.jsx` plus `pages/Main.jsx` but `Email.jsx`/`ViewEmails.jsx` (route pages) under `components/`.
 - On case-insensitive Windows dev machines mismatched case between import path and file name (e.g. `Emailbody` vs `EmailBody`) works but breaks on Linux CI/Docker if someone "fixes" one side. Currently imports match file names exactly (verified by the working `dist` build on Alpine). Renames must be done with `git mv` and a case-only rename on Windows needs care.
@@ -356,9 +424,13 @@ All **[Verified by reading]**:
 
 ---
 
-## 10. Issue index
+#> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
 
-| # | Label | Issue | Location |
+# 10. Issue index
+
+| > **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
+
+# | Label | Issue | Location |
 |---|---|---|---|
 | 1 | Verified | Tailwind works only through the runtime CDN `@tailwindcss/browser@4` script (no SRI, unpinned); build has no Tailwind plugin; `@import "tailwindcss"` is inert | `index.html:9`, `index.css:1`, `vite.config.js` |
 | 2 | Verified | "Delete email" only mutates local state, no API call | `ViewEmails.jsx:81-85` |
@@ -388,7 +460,9 @@ All **[Verified by reading]**:
 
 ---
 
-## 11. Prioritized, incremental refactor recommendations
+#> **Path note:** components were regrouped after this analysis was written: `components/{layout,mail,compose,categories,common}/`, routed screens in `pages/` (`Email.jsx`, `ViewEmails.jsx`), `emailContext` in `context/emailContext.js`, HTTP calls in `api/*.js`, `getColor` in `utils/`. File names below may refer to the old locations.
+
+# 11. Prioritized, incremental refactor recommendations
 
 Principle: this is a small app. No Redux/Zustand/React Query is justified yet. The state graph is small enough that fixing the context and using `useParams` is enough. Revisit React Query only if you later add refetch/polling/optimistic updates for several resources, since it would replace `loaded`, the manual fetch effect and error handling in one go.
 
