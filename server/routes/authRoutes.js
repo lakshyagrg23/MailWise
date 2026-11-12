@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { asyncHandler as h } from "../utils/asyncHandler.js";
+import { asyncHandler as h } from "../utils/http/asyncHandler.js";
 import { authLimiter } from "../middleware/rateLimit.js";
 import { url } from "../controllers/auth/url.js";
 import { callback } from "../controllers/auth/callback.js";

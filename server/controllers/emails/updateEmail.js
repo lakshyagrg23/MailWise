@@ -1,6 +1,6 @@
 import prisma from '../../lib/prisma.js';
 import { getAuthenticatedClient } from '../../services/googleAuthService.js';
-import { badRequest, notFound } from '../../utils/httpErrors.js';
+import { badRequest, notFound } from '../../utils/http/httpErrors.js';
 
 // API field -> Gmail label, and whether the label is present when the field is true
 const FLAGS = {

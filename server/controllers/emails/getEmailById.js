@@ -1,5 +1,5 @@
-import { extractBody } from "../../utils/extractBody.js";
-import { collectAttachments } from "../../utils/attachments.js";
+import { extractBody } from "../../utils/gmail/extractBody.js";
+import { collectAttachments } from "../../utils/gmail/attachments.js";
 import { getAuthenticatedClient } from "../../services/googleAuthService.js";
 
 /**

@@ -6,7 +6,7 @@ import { env } from "./config/env.js";
 import authRoutes from "./routes/authRoutes.js";
 import webhookRoutes from "./routes/webhookRoutes.js";
 import v1Routes from "./routes/v1/index.js";
-import { toErrorResponse } from "./utils/httpErrors.js";
+import { toErrorResponse } from "./utils/http/httpErrors.js";
 
 BigInt.prototype.toJSON = function() { return this.toString(); };
 

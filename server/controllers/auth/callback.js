@@ -2,7 +2,7 @@ import axios from 'axios';
 import prisma from '../../lib/prisma.js';
 import { createSession, consumeOAuthState } from '../../utils/session.js';
 import { createOAuth2Client } from '../../services/googleAuthService.js';
-import { DEFAULT_CATEGORIES } from '../../utils/categories.js';
+import { DEFAULT_CATEGORIES } from '../../config/categories.js';
 import { env } from '../../config/env.js';
 
 export const callback = async (req, res) => {

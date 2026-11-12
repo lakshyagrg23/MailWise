@@ -1,6 +1,6 @@
 import prisma from '../../lib/prisma.js';
 import { createSession } from '../../utils/session.js';
-import { DEFAULT_CATEGORIES } from '../../utils/categories.js';
+import { DEFAULT_CATEGORIES } from '../../config/categories.js';
 import { DEMO_GOOGLE_ID } from '../../middleware/requireAuth.js';
 
 export const demoLogin = async (req, res) => {

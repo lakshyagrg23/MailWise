@@ -1,11 +1,11 @@
 import { getAuthenticatedClient } from '../../services/googleAuthService.js';
-import { buildRawMessage } from '../../utils/mimeBuilder.js';
-import { extractBody } from '../../utils/extractBody.js';
+import { buildRawMessage } from '../../utils/gmail/mimeBuilder.js';
+import { extractBody } from '../../utils/gmail/extractBody.js';
 import { executeWithRetry } from '../../utils/retryHelper.js';
 import { asyncPoolValues } from '../../utils/asyncPool.js';
 import { decodeHtmlEntities, stripHtml } from '../../utils/emailCleaner.js';
-import { pageTokenFrom } from '../../utils/pagination.js';
-import { badRequest, notFound } from '../../utils/httpErrors.js';
+import { pageTokenFrom } from '../../utils/http/pagination.js';
+import { badRequest, notFound } from '../../utils/http/httpErrors.js';
 
 // Gmail errors (including 403 insufficient-scope -> reauth_required) are mapped centrally by
 // toErrorResponse in utils/httpErrors.js, so these handlers just let them propagate.

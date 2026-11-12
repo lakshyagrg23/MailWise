@@ -1,5 +1,5 @@
-import { badRequest } from '../../utils/httpErrors.js';
-import { isReservedCategoryName, MAX_CATEGORY_NAME, MAX_CATEGORY_DESCRIPTION } from '../../utils/categories.js';
+import { badRequest } from '../utils/http/httpErrors.js';
+import { isReservedCategoryName, MAX_CATEGORY_NAME, MAX_CATEGORY_DESCRIPTION } from '../config/categories.js';
 
 const cleanName = (raw) => {
     if (typeof raw !== 'string' || !raw.trim()) throw badRequest('name must be a non-empty string');

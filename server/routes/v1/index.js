@@ -1,8 +1,7 @@
 import { Router } from "express";
 import { requireAuth } from "../../middleware/requireAuth.js";
-import { asyncHandler as h } from "../../utils/asyncHandler.js";
-import { listSentEmails } from "../../controllers/emails/listSentEmails.js";
 import emailRoutes from "./emailRoutes.js";
+import sentRoutes from "./sentRoutes.js";
 import draftRoutes from "./draftRoutes.js";
 import categoryRoutes from "./categoryRoutes.js";
 import aiRoutes from "./aiRoutes.js";
@@ -25,7 +24,7 @@ const v1 = Router();
 v1.use(requireAuth);
 
 v1.use("/emails", emailRoutes);
-v1.get("/sent", h(listSentEmails));
+v1.use("/sent", sentRoutes);
 v1.use("/drafts", draftRoutes);
 v1.use("/categories", categoryRoutes);
 v1.use("/ai", aiRoutes);

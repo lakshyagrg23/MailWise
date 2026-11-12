@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { asyncHandler as h } from "../../utils/asyncHandler.js";
-import { EMAIL_ID_RE, PART_ID_RE, validateParam } from "../../utils/params.js";
+import { asyncHandler as h } from "../../utils/http/asyncHandler.js";
+import { EMAIL_ID_RE, PART_ID_RE, validateParam } from "../../utils/http/params.js";
 import { attachmentLimiter, summarizeLimiter, syncLimiter } from "../../middleware/rateLimit.js";
 import { listEmails } from "../../controllers/emails/listEmails.js";
 import { syncEmails } from "../../controllers/emails/syncEmails.js";

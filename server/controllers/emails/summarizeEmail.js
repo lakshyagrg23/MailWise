@@ -2,7 +2,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { env } from '../../config/env.js';
 import prisma from '../../lib/prisma.js';
 import { getAuthenticatedClient } from '../../services/googleAuthService.js';
-import { extractBody } from '../../utils/extractBody.js';
+import { extractBody } from '../../utils/gmail/extractBody.js';
 import { cleanEmailForAI } from '../../utils/emailCleaner.js';
 import { executeWithRetry } from '../../utils/retryHelper.js';
 

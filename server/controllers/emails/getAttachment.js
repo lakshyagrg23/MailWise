@@ -1,11 +1,11 @@
 import { getAuthenticatedClient } from '../../services/googleAuthService.js';
-import { notFound, HttpError } from '../../utils/httpErrors.js';
+import { notFound, HttpError } from '../../utils/http/httpErrors.js';
 import {
     MAX_ATTACHMENT_BYTES,
     findAttachmentPart,
     safeContentType,
     attachmentDisposition,
-} from '../../utils/attachments.js';
+} from '../../utils/gmail/attachments.js';
 
 /**
  * GET /api/v1/emails/:emailId/attachments/:partId

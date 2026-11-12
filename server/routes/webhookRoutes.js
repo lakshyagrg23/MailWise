@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { asyncHandler as h } from "../utils/asyncHandler.js";
+import { asyncHandler as h } from "../utils/http/asyncHandler.js";
 import { gmailWebhook } from "../controllers/webhook/gmailWebhook.js";
 import { verifyPubSubToken } from "../middleware/verifyPubSubToken.js";
 

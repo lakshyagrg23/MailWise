@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { asyncHandler as h } from "../../utils/asyncHandler.js";
-import { validateIntParam } from "../../utils/params.js";
+import { asyncHandler as h } from "../../utils/http/asyncHandler.js";
+import { validateIntParam } from "../../utils/http/params.js";
 import { getCategories } from "../../controllers/categories/getCategories.js";
 import { createCategory } from "../../controllers/categories/createCategory.js";
 import { updateCategory } from "../../controllers/categories/updateCategory.js";

@@ -2,7 +2,7 @@ import { getAuthenticatedClient } from '../../services/googleAuthService.js';
 import { executeWithRetry } from '../../utils/retryHelper.js';
 import { asyncPoolValues } from '../../utils/asyncPool.js';
 import { decodeHtmlEntities } from '../../utils/emailCleaner.js';
-import { pageTokenFrom } from '../../utils/pagination.js';
+import { pageTokenFrom } from '../../utils/http/pagination.js';
 
 const SENT_LIMIT = 20;
 

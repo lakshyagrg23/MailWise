@@ -1,7 +1,7 @@
 import { getAuthenticatedClient } from '../../services/googleAuthService.js';
-import { buildRawMessage } from '../../utils/mimeBuilder.js';
-import { HttpError, badRequest } from '../../utils/httpErrors.js';
-import { DRAFT_ID_RE } from '../../utils/params.js';
+import { buildRawMessage } from '../../utils/gmail/mimeBuilder.js';
+import { HttpError, badRequest } from '../../utils/http/httpErrors.js';
+import { DRAFT_ID_RE } from '../../utils/http/params.js';
 
 /**
  * POST /api/v1/emails/send   { to, subject, body, cc?, bcc?, draftId? }

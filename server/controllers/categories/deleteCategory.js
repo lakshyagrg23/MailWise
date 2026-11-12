@@ -1,5 +1,5 @@
 import prisma from '../../lib/prisma.js';
-import { notFound } from '../../utils/httpErrors.js';
+import { notFound } from '../../utils/http/httpErrors.js';
 
 /** DELETE /api/v1/categories/:categoryId */
 export const deleteCategory = async (req, res) => {

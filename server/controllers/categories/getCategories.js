@@ -1,5 +1,5 @@
 import prisma from '../../lib/prisma.js';
-import { toCategoryDto } from './validate.js';
+import { toCategoryDto } from '../../validators/category.js';
 
 /** GET /api/v1/categories */
 export const getCategories = async (req, res) => {

@@ -1,6 +1,6 @@
 import prisma from '../../lib/prisma.js';
-import { notFound } from '../../utils/httpErrors.js';
-import { parseCategoryPatch, toCategoryDto } from './validate.js';
+import { notFound } from '../../utils/http/httpErrors.js';
+import { parseCategoryPatch, toCategoryDto } from '../../validators/category.js';
 
 /** PATCH /api/v1/categories/:categoryId  { name?, description? }. Renaming also re-labels the user's stored emails. */
 export const updateCategory = async (req, res) => {

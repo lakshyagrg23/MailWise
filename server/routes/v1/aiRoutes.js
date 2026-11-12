@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { asyncHandler as h } from "../../utils/asyncHandler.js";
+import { asyncHandler as h } from "../../utils/http/asyncHandler.js";
 import { aiDraftLimiter } from "../../middleware/rateLimit.js";
-import { generateAiEmail } from "../../controllers/emails/generateAiEmail.js";
+import { generateAiEmail } from "../../controllers/ai/generateAiEmail.js";
 
 const router = Router();
 
