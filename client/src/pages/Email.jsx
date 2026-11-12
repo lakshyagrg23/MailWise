@@ -1,5 +1,4 @@
 import React, { useEffect, useContext, useState, useMemo } from "react";
-import { useOutletContext } from "react-router-dom";
 import {
   Box,
   List,
@@ -22,14 +21,12 @@ import NoMails from "../components/common/NoMails";
 import { emailContext } from "../context/emailContext";
 import { listSent } from "../api/emails";
 import { listDrafts } from "../api/drafts";
-import { motion } from "framer-motion";
 
 // Sent and Drafts are live Gmail views; both resolve to { emails, nextPageToken }
 const listMailbox = (view, pageToken) =>
   (view.toLowerCase() === "sent" ? listSent : listDrafts)(pageToken);
 
 const Email = () => {
-  const { openDrawer } = useOutletContext();
   const emailhook = useContext(emailContext);
 
   // Pagination States (Gmail-style)

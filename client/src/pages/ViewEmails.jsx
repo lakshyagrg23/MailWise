@@ -11,7 +11,7 @@ import {
   CircularProgress,
   Button
 } from '@mui/material';
-import { useOutletContext, useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
@@ -20,6 +20,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import EmailBody from '../components/mail/EmailBody';
 import { emailContext } from "../context/emailContext";
 import { getRandomColor } from '../utils/getColor';
+import { isAiSummary } from '../utils/summary';
 import dayjs from 'dayjs';
 
 const formatSize = (bytes) => {
@@ -33,10 +34,9 @@ const ViewEmails = () => {
   const { setEmails } = useContext(emailContext);
   const { state } = useLocation();
   const { email: initialEmail } = state || {};
-  const { openDrawer } = useOutletContext();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState(initialEmail);
+  const [email] = useState(initialEmail);
   const [emailBody, setEmailBody] = useState(null);
   const [attachments, setAttachments] = useState([]);
   const [downloadingPart, setDownloadingPart] = useState(null);
@@ -44,10 +44,7 @@ const ViewEmails = () => {
   const [loading, setLoading] = useState(true);
 
   // Summary State (only initialize if real AI summary exists)
-  const initialAiSummary = (email?.emailsummary && (email.emailsummary.includes('•') || email.emailsummary.includes('Action Item:'))) 
-    ? email.emailsummary 
-    : '';
-  const [summary, setSummary] = useState(initialAiSummary);
+  const [summary, setSummary] = useState(isAiSummary(email?.emailsummary) ? email.emailsummary : '');
   const [loadingSummary, setLoadingSummary] = useState(false);
 
   useEffect(() => {
@@ -136,8 +133,6 @@ const ViewEmails = () => {
   const formattedDate = email.received_date
     ? dayjs(email.received_date).format('dddd, MMMM D, YYYY [at] h:mm A')
     : 'Unknown Date';
-
-  const isRichSummary = summary && (summary.includes('•') || summary.includes('Action Item:'));
 
   return (
     <Box

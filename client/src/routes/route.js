@@ -1,4 +1,3 @@
-/* eslint-disable no-unused-vars */
 import { lazy } from "react"
 const Main=lazy(()=>import('../pages/Main'));
 const Email=lazy(()=>import('../pages/Email'));
